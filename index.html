@@ -106,6 +106,8 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .liveGrid { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; grid-template-columns: repeat(3, 1fr);
   border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.35) }
 .liveGrid i { border: 1px solid rgba(255,255,255,.85) }
+.camnote { margin: 0; padding: 10px 12px; border-radius: 8px; font-weight: 700; background: var(--bg); border-left: 4px solid var(--ok) }
+.camnote.ng { border-left-color: var(--ng); color: var(--ng) }
 .hint2 { margin: 0; padding: 10px 12px; border-radius: 8px; border: 2px dashed var(--accent); font-weight: 700; display: flex; gap: 10px; align-items: baseline }
 .hint2 em { font: 700 .75rem var(--f-mono); font-style: normal; background: var(--accent); color: var(--accent-ink); padding: 2px 8px; border-radius: 99px; flex: none }
 .nextAct { outline: 3px solid var(--accent); outline-offset: 2px; animation: nudge 1.6s ease-in-out infinite }
@@ -165,6 +167,7 @@ dd { margin: 0; color: var(--muted) }
           <div class="stepfig" aria-hidden="true"><span class="upbar" id="stepUp"><i></i><i></i><i></i></span><span class="face3" id="stepFace"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
           <div class="steptxt"><b id="stepNo"></b><span id="camGuide"></span><span class="small" id="stepHow"></span></div>
         </div>
+        <p class="camnote" id="camNote" role="status" hidden></p>
         <p class="hint2" id="camHint" role="status" aria-live="polite"></p>
         <div class="row">
           <button id="camLive" class="primary grow">カメラで読み取る</button>
@@ -604,8 +607,8 @@ function paintAt(idx) {
 var CAM_ORDER = [2, 1, 5, 4, 0, 3];
 var CAM_NAME = ["白(上)", "赤(右)", "緑(前)", "黄(下)", "オレンジ(左)", "青(奥)"];
 var CAM_UP = ["青", "白", "白", "緑", "白", "白"], CAM_UPF = [5, 0, 0, 2, 0, 0];
-var CAM_HOW = ["緑を正面・白を上に戻してから、手前に倒す(白が正面、青が上になる)", "そのままキューブを左へ90°回す(白は上のまま)",
-  "緑の中心を正面、白の中心を上にして持つ", "緑を正面・白を上に戻してから、奥に倒す(黄が正面、緑が上になる)",
+var CAM_HOW = ["緑を正面・白を上に戻し、上の白い面がこちらを向くまで手前に倒す(青が上になる)", "白を上にしたまま、キューブを左へ90°回す(右にあった赤がこちらを向く)",
+  "緑の中心を正面、白の中心を上にして持つ", "緑を正面・白を上に戻し、下の黄色い面がこちらを向くまで奥に倒す(緑が上になる)",
   "さらに左へ90°回す(白は上のまま)", "さらに左へ90°回す(白は上のまま)"];
 var cam = { face: 2, off: null, px: null, cx: 0.5, cy: 0.5, size: 0.7, data: {} };
 function buildCam() {
@@ -642,6 +645,7 @@ function camHint() {
   else if (cam.off) { t = "写真をドラッグして白い枠を9マスに合わせ(大きさはスライダー)、「この面を読み取る」を押してください"; act = ["camTake"]; }
   else { t = (done ? "次は" : "") + nm + "の面です。「カメラで読み取る」か「写真を選ぶ」で" + nm + "が正面の写真を用意してください"; act = ["camLive", "camPick"]; }
   $("camHint").innerHTML = "<em>次</em><span></span>"; $("camHint").lastChild.textContent = t;
+  var nt = $("camNote"); nt.hidden = !cam.note; if (cam.note) { nt.textContent = cam.note.text; nt.className = "camnote" + (cam.note.ok ? "" : " ng"); }
   ["camLive", "camPick", "camTake", "liveTake", "camApply"].forEach(function (id) { $(id).classList.toggle("nextAct", act.indexOf(id) >= 0); });
 }
 function camUI() {
@@ -665,6 +669,7 @@ function camUI() {
   camHint();
 }
 function loadPhoto(file) {
+  if (cam.note && cam.note.ok) cam.note = null;
   var img = new Image(), url = URL.createObjectURL(file);
   img.onload = function () {
     var k = Math.min(1, 900 / Math.max(img.width, img.height)), c = document.createElement("canvas");
@@ -732,6 +737,10 @@ function takeFace() {
     }
     out.push(n ? s.map(function (v) { return Math.round(v / n); }) : [128, 128, 128]);
   }
+  var cL = toLab(out[4]), dup = null;
+  Object.keys(cam.data).forEach(function (g) { if (+g === cam.face) return; var o = toLab(cam.data[g][4]);
+    var d = Math.hypot(cL[0] - o[0], cL[1] - o[1], cL[2] - o[2]); if (d < 12) dup = +g; });
+  cam.note = dup !== null ? { text: "注意:いま読み取った面の中心が、" + CAM_NAME[dup].replace(/\(.*/, "") + "の面とほぼ同じ色です。同じ面を2回撮っていないか確認し、違っていたら上の番号ボタンから撮り直してください。", ok: false } : null;
   cam.data[cam.face] = out;
   var next = CAM_ORDER.filter(function (f) { return !cam.data[f]; })[0];
   if (next !== undefined) { cam.face = next; setMsg(""); }
@@ -746,22 +755,65 @@ function toLab(rgb) {
   var f = function (t) { return t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; };
   return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Zz))];
 }
+// 写真の向き違いを吸収: 各面を0/90/180/270°回した全4096通りから、実在する配置になるものを探す
+var ROT9 = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (k) { var r = (k / 3) | 0, c = k % 3; return (2 - c) * 3 + r; });
+function rotFace(st, f, times) {
+  for (var t = 0; t < times; t++) { var o = st.slice(f * 9, f * 9 + 9); for (var k = 0; k < 9; k++) st[f * 9 + k] = o[ROT9[k]]; }
+}
+function findRotation(st) {
+  var best = null;
+  for (var code = 0; code < 4096; code++) {
+    var rs = [], n = 0, c = code;
+    for (var f = 0; f < 6; f++) { rs.push(c & 3); if (c & 3) n++; c >>= 2; }
+    if (best && n >= best.n) continue;
+    var s = st.slice(); for (f = 0; f < 6; f++) rotFace(s, f, rs[f]);
+    if (validate(s).ok) best = { st: s, rs: rs, n: n };
+  }
+  return best;
+}
 function applyCam() {
   if (busy) return;
-  var ref = [0, 1, 2, 3, 4, 5].map(function (f) { return toLab(cam.data[f][4]); }), pairs = [], next = new Array(54), cnt = [1, 1, 1, 1, 1, 1];
+  var ref = [0, 1, 2, 3, 4, 5].map(function (f) { return toLab(cam.data[f][4]); }), pairs = [], next = new Array(54), cnt = [1, 1, 1, 1, 1, 1], dist = [];
   for (var f = 0; f < 6; f++) for (var k = 0; k < 9; k++) {
     if (k === 4) { next[f * 9 + 4] = f; continue; }
-    var L = toLab(cam.data[f][k]);
-    for (var c = 0; c < 6; c++) { var d0 = L[0] - ref[c][0], d1 = L[1] - ref[c][1], d2 = L[2] - ref[c][2];
-      pairs.push([0.4 * d0 * d0 + d1 * d1 + d2 * d2, f * 9 + k, c]); }
+    var L = toLab(cam.data[f][k]); dist[f * 9 + k] = [];
+    for (var c = 0; c < 6; c++) { var d0 = L[0] - ref[c][0], d1 = L[1] - ref[c][1], d2 = L[2] - ref[c][2], d = 0.4 * d0 * d0 + d1 * d1 + d2 * d2;
+      dist[f * 9 + k][c] = d; pairs.push([d, f * 9 + k, c]); }
   }
   pairs.sort(function (a, b) { return a[0] - b[0]; });
   pairs.forEach(function (p) { if (next[p[1]] === undefined && cnt[p[2]] < 9) { next[p[1]] = p[2]; cnt[p[2]]++; } });
+
+  // 1) そのまま/向き補正で成立するか  2) だめなら自信の低いマス同士を入れ替えて再挑戦
+  var found = findRotation(next), swapped = 0;
+  if (!found) {
+    // 割り当てた色と、次に近い色との差が小さい(=見分けにくい)マスを8つ選ぶ
+    var cells = [];
+    for (var i = 0; i < 54; i++) if (i % 9 !== 4) {
+      var other = Math.min.apply(null, dist[i].filter(function (x, j) { return j !== next[i]; }));
+      cells.push([Math.sqrt(dist[i][next[i]]) - Math.sqrt(other), i]);
+    }
+    cells.sort(function (a, b) { return b[0] - a[0]; });
+    var weak = cells.slice(0, 8).map(function (x) { return x[1]; });
+    for (var a = 0; a < weak.length && !found; a++) for (var b = a + 1; b < weak.length && !found; b++) {
+      if (next[weak[a]] === next[weak[b]]) continue;
+      var s = next.slice(), t = s[weak[a]]; s[weak[a]] = s[weak[b]]; s[weak[b]] = t;
+      found = findRotation(s); if (found) swapped = 2;
+    }
+  }
+  var notes = [];
+  if (found) {
+    next = found.st;
+    found.rs.forEach(function (r, f) { if (r) notes.push(CAM_NAME[f].replace(/\(.*/, "")); });
+  }
   state = next; clearSol(); render();
-  cam.data = {}; cam.face = CAM_ORDER[0]; camUI();
-  var v = validate(state);
-  setMsg(v.ok ? "写真から色を反映しました。実物と見比べて、違うマスがあれば展開図で直してから「解く」を押してください。"
-              : "写真から色を反映しましたが、" + v.msg + " 実物と見比べて違うマスを直してください。", !v.ok);
+  cam.data = {}; cam.face = CAM_ORDER[0];
+  var v = validate(state), msg;
+  if (v.ok) {
+    msg = "読み取り成功。" + (notes.length ? notes.join("・") + "の写真の向きがずれていたので自動で直しました。" : "") +
+      (swapped ? "見分けにくかったマスを2つ自動で補正しました。" : "") + "念のため3Dキューブと実物を見比べてから「解く」を押してください。";
+  } else msg = "色の読み取りに間違いがあります(" + v.msg + ")。上の展開図で実物と違うマスを直すか、写りの悪い面を撮り直してください。";
+  cam.note = { text: msg, ok: v.ok };
+  camUI(); setMsg(msg, !v.ok);
 }
 
 // ---- 手動回転 ----
