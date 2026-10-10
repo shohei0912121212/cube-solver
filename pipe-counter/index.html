@@ -1,0 +1,1475 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>パイプ本数カウンター</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  h1, h2, p, ol, ul { margin: 0; }
+  button, input { font: inherit; color: inherit; }
+</style>
+</head>
+<body>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #EEF0F3;
+    --surface: #FFFFFF;
+    --surface-2: #E3E8ED;
+    --line: #CBD3DB;
+    --line-soft: #DDE3E9;
+    --ink: #11171D;
+    --ink-2: #57646F;
+    --ink-3: #8593A0;
+    --accent: #0B6FA4;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #DCEBF4;
+    --danger: #A32B1E;
+    --good: #1F7A54;
+    --stage: #C9D0D7;
+    --shadow: 0 1px 2px rgba(17,23,29,.10), 0 8px 24px rgba(17,23,29,.10);
+    --sheet-shadow: 0 -2px 40px rgba(17,23,29,.22);
+
+    --sans: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #12161A;
+      --surface: #1A2026;
+      --surface-2: #232B33;
+      --line: #333D47;
+      --line-soft: #2A333B;
+      --ink: #E7ECF1;
+      --ink-2: #9BA8B4;
+      --ink-3: #6F7D89;
+      --accent: #4FB3E8;
+      --accent-ink: #06202E;
+      --accent-soft: #17303E;
+      --danger: #F08476;
+      --good: #58C696;
+      --stage: #0B0F12;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.45);
+      --sheet-shadow: 0 -2px 40px rgba(0,0,0,.6);
+    }
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #EEF0F3;
+    --surface: #FFFFFF;
+    --surface-2: #E3E8ED;
+    --line: #CBD3DB;
+    --line-soft: #DDE3E9;
+    --ink: #11171D;
+    --ink-2: #57646F;
+    --ink-3: #8593A0;
+    --accent: #0B6FA4;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #DCEBF4;
+    --danger: #A32B1E;
+    --good: #1F7A54;
+    --stage: #C9D0D7;
+    --shadow: 0 1px 2px rgba(17,23,29,.10), 0 8px 24px rgba(17,23,29,.10);
+    --sheet-shadow: 0 -2px 40px rgba(17,23,29,.22);
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #12161A;
+    --surface: #1A2026;
+    --surface-2: #232B33;
+    --line: #333D47;
+    --line-soft: #2A333B;
+    --ink: #E7ECF1;
+    --ink-2: #9BA8B4;
+    --ink-3: #6F7D89;
+    --accent: #4FB3E8;
+    --accent-ink: #06202E;
+    --accent-soft: #17303E;
+    --danger: #F08476;
+    --good: #58C696;
+    --stage: #0B0F12;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.45);
+    --sheet-shadow: 0 -2px 40px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .app {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---------- header ---------- */
+
+  .bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+  .brand b {
+    font-size: 14px;
+    font-weight: 650;
+    letter-spacing: .01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .brand span {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+
+  .tally {
+    margin-left: auto;
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+  }
+
+  .tally output {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 40px;
+    line-height: .95;
+    font-weight: 600;
+    letter-spacing: -.03em;
+  }
+
+  .tally i { font-style: normal; font-size: 13px; color: var(--ink-2); }
+
+  .icon-btn {
+    flex: none;
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--surface);
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+
+  .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
+  .icon-btn svg { width: 19px; height: 19px; }
+
+  /* ---------- stage ---------- */
+
+  .stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    background: var(--stage);
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  #view { display: block; width: 100%; height: 100%; }
+
+  .empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    padding: 24px;
+    text-align: center;
+    background: var(--bg);
+  }
+
+  .empty[hidden] { display: none; }
+
+  .steps {
+    display: grid;
+    gap: 9px;
+    max-width: 310px;
+    width: 100%;
+    text-align: left;
+  }
+
+  .steps li {
+    display: flex;
+    gap: 11px;
+    align-items: baseline;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--ink-2);
+  }
+
+  .steps li b {
+    flex: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .steps { list-style: none; margin: 0; padding: 0; }
+
+  .empty h1 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 650;
+    letter-spacing: .01em;
+    text-wrap: balance;
+  }
+
+  .empty p {
+    margin: 7px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink-2);
+    max-width: 330px;
+    text-wrap: pretty;
+  }
+
+  .zoomtag {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(10,14,18,.62);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .04em;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .25s;
+  }
+
+  .zoomtag.on { opacity: 1; }
+
+  /* ---------- dock ---------- */
+
+  .dock {
+    flex: none;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 9px 10px;
+    padding-bottom: max(9px, env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+  }
+
+  .dock button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 9px 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 550;
+    letter-spacing: .02em;
+    cursor: pointer;
+    transition: background .12s, border-color .12s, transform .08s;
+  }
+
+  .dock button svg { width: 20px; height: 20px; }
+  .dock button:hover:not(:disabled) { background: var(--surface-2); }
+  .dock button:active:not(:disabled) { transform: scale(.96); }
+
+  .dock button:disabled { opacity: .38; cursor: default; }
+
+  .dock button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .dock button.primary:hover:not(:disabled) {
+    background: var(--accent);
+    filter: brightness(1.08);
+  }
+
+  :where(button, input, select, a):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* ---------- sheet ---------- */
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,12,16,.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s;
+    z-index: 40;
+  }
+
+  .scrim.on { opacity: 1; pointer-events: auto; }
+
+  .sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    max-height: 86dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    border-radius: 16px 16px 0 0;
+    box-shadow: var(--sheet-shadow);
+    transform: translateY(101%);
+    transition: transform .26s cubic-bezier(.32,.72,0,1);
+  }
+
+  .sheet.on { transform: translateY(0); }
+
+  @media (min-width: 620px) {
+    .sheet { left: auto; right: 16px; width: 420px; border-radius: 16px 16px 0 0; }
+  }
+
+  .sheet header {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px 16px 11px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .sheet header h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: var(--ink-2);
+  }
+
+  .sheet header button { margin-left: auto; }
+
+  .sheet .body {
+    overflow-y: auto;
+    padding: 14px 16px;
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 7px; }
+
+  .field > label {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--ink-2);
+  }
+
+  .field > label var {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 11.5px;
+    color: var(--ink);
+  }
+
+  .field .hint { font-size: 11.5px; line-height: 1.55; color: var(--ink-3); }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 10px 11px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 15px;
+  }
+
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+  .swatches { display: flex; gap: 8px; }
+
+  .swatch {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    border: 2px solid var(--line);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .swatch[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 2px var(--surface) inset; }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 11px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn:hover { background: var(--surface-2); }
+  .btn.fill { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.fill:hover { filter: brightness(1.08); }
+  .btn.warn { color: var(--danger); border-color: var(--danger); background: transparent; }
+  .btn.warn:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+  .btn svg { width: 16px; height: 16px; }
+
+  .row { display: flex; gap: 8px; }
+  .row > .btn { flex: 1; }
+
+  .rule { height: 1px; background: var(--line-soft); }
+
+  /* ---------- records ---------- */
+
+  .reclist { display: flex; flex-direction: column; gap: 6px; }
+
+  .rec {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 11px;
+    border: 1px solid var(--line-soft);
+    border-radius: 9px;
+    background: var(--bg);
+  }
+
+  .rec .meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .rec .meta b { font-size: 13.5px; font-weight: 600; }
+  .rec .meta span { font-size: 11px; color: var(--ink-3); font-family: var(--mono); }
+
+  .rec .n {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  .rec .n::after { content: "本"; font-size: 10px; font-family: var(--sans); color: var(--ink-3); margin-left: 2px; }
+
+  .rec .del {
+    flex: none;
+    border: 0;
+    background: transparent;
+    color: var(--ink-3);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .rec .del:hover { color: var(--danger); }
+
+  .none { font-size: 12.5px; color: var(--ink-3); padding: 4px 0; }
+
+  .total {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 11px 12px;
+    border-radius: 9px;
+    background: var(--accent-soft);
+  }
+
+  .total span {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--ink-2);
+  }
+
+  .total b {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 20px;
+    font-weight: 650;
+  }
+
+  /* ---------- toast / busy ---------- */
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    transform: translate(-50%, 12px);
+    z-index: 60;
+    max-width: min(420px, calc(100vw - 28px));
+    padding: 11px 15px;
+    border-radius: 10px;
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: center;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+  }
+
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  .busy {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 11px;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    font-size: 13.5px;
+    font-weight: 600;
+    z-index: 5;
+  }
+
+  .busy.on { display: flex; }
+
+  .spin {
+    width: 17px;
+    height: 17px;
+    border: 2.5px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  }
+
+  @media (max-width: 360px) {
+    .tally output { font-size: 33px; }
+    .dock button { font-size: 10.5px; }
+  }
+</style>
+
+<div class="app">
+  <div class="bar">
+    <div class="brand">
+      <b>パイプ本数カウンター</b>
+      <span id="brandsub">写真を読み込んでください</span>
+    </div>
+    <div class="tally">
+      <output id="count">0</output><i>本</i>
+    </div>
+    <button class="icon-btn" id="btn-settings" aria-label="設定">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="view"></canvas>
+    <div class="zoomtag" id="zoomtag">100%</div>
+
+    <div class="empty" id="empty">
+      <div>
+        <h1>パレット側面の写真から<br>パイプの本数を数えます</h1>
+        <p>自動検出でおおまかに拾ってから、抜けや誤検出をタップで直す使い方です。最後の判断は必ず人が持ちます。</p>
+      </div>
+      <ol class="steps">
+        <li><b>01</b><span>木口の面を正面から、1山まるごと写した写真を読み込む</span></li>
+        <li><b>02</b><span>「自動検出」を押す。ピンチで拡大して結果を確認</span></li>
+        <li><b>03</b><span>抜けはタップで追加、余分な印はタップで削除</span></li>
+      </ol>
+      <button class="btn fill" id="btn-pick-big">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-4l-1.5-2z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        写真を選ぶ / 撮影する
+      </button>
+    </div>
+
+    <div class="busy" id="busy"><div class="spin"></div>解析中…</div>
+  </div>
+
+  <div class="dock">
+    <button id="btn-pick">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-4l-1.5-2z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      写真
+    </button>
+    <button id="btn-detect" class="primary" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="2.4"/><circle cx="15.5" cy="9" r="2.4"/><circle cx="9" cy="15.5" r="2.4"/><circle cx="15.5" cy="15.5" r="2.4"/><path d="M3 6V4a1 1 0 0 1 1-1h2M21 6V4a1 1 0 0 0-1-1h-2M3 18v2a1 1 0 0 0 1 1h2M21 18v2a1 1 0 0 1-1 1h-2"/></svg>
+      自動検出
+    </button>
+    <button id="btn-undo" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h11a5.5 5.5 0 1 1 0 11H8"/><path d="M7 4 3 8l4 4"/></svg>
+      1つ戻す
+    </button>
+    <button id="btn-records">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8 8h8M8 12h8M8 16h4"/></svg>
+      記録
+    </button>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<!-- 設定シート -->
+<section class="sheet" id="sheet-settings" aria-hidden="true">
+  <header>
+    <h2>設定</h2>
+    <button class="icon-btn" data-close aria-label="閉じる">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </header>
+  <div class="body">
+    <div class="field">
+      <label for="sens">検出感度 <var id="sens-val">12</var></label>
+      <input type="range" id="sens" min="4" max="30" step="1" value="12">
+      <div class="hint">上げると暗い木口も拾いますが、影やゴミも拾いやすくなります。検出が少なすぎるときに上げてください。</div>
+    </div>
+
+    <div class="field">
+      <label for="minr">小さい検出を除外 <var id="minr-val">30%</var></label>
+      <input type="range" id="minr" min="10" max="80" step="5" value="30">
+      <div class="hint">標準的な木口の大きさに対して、この割合より小さい検出を捨てます。錆の点や隙間の影を拾うときに上げてください。</div>
+    </div>
+
+    <div class="rule"></div>
+
+    <div class="field">
+      <label>マーカーの色</label>
+      <div class="swatches" id="swatches">
+        <button class="swatch" data-color="#FF2D6B" style="background:#FF2D6B" aria-pressed="true" aria-label="マゼンタ"></button>
+        <button class="swatch" data-color="#00D9FF" style="background:#00D9FF" aria-pressed="false" aria-label="シアン"></button>
+        <button class="swatch" data-color="#B6FF1A" style="background:#B6FF1A" aria-pressed="false" aria-label="ライム"></button>
+        <button class="swatch" data-color="#FFFFFF" style="background:#FFFFFF" aria-pressed="false" aria-label="ホワイト"></button>
+      </div>
+      <div class="hint">写真に埋もれて見えにくいときは色を変えてください。</div>
+    </div>
+
+    <label class="toggle"><input type="checkbox" id="opt-num" checked> 通し番号を表示する</label>
+
+    <div class="rule"></div>
+
+    <button class="btn warn" id="btn-clear">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+      印をすべて消す
+    </button>
+  </div>
+</section>
+
+<!-- 記録シート -->
+<section class="sheet" id="sheet-records" aria-hidden="true">
+  <header>
+    <h2>記録</h2>
+    <button class="icon-btn" data-close aria-label="閉じる">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </header>
+  <div class="body">
+    <div class="field">
+      <label for="in-place">場所・パレット</label>
+      <input type="text" id="in-place" placeholder="例: A-3 棚 / 3番パレット" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="in-size">サイズ</label>
+      <input type="text" id="in-size" placeholder="例: 丸25.4×t1.6" autocomplete="off">
+    </div>
+
+    <div class="row">
+      <button class="btn fill" id="btn-save">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
+        <span id="save-label">この本数を記録</span>
+      </button>
+      <button class="btn" id="btn-png">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 21h16"/></svg>
+        番号付き画像
+      </button>
+    </div>
+
+    <div class="rule"></div>
+
+    <div class="total"><span>記録の合計</span><b id="rec-total">0 本</b></div>
+    <div class="reclist" id="reclist"></div>
+
+    <div class="row">
+      <button class="btn" id="btn-csv">CSVを保存</button>
+      <button class="btn" id="btn-copy">表にコピー</button>
+    </div>
+    <div class="field"><div class="hint">記録はこの端末のブラウザに保存されます。棚卸が終わったらCSVを保存して、在庫表に取り込んでください。</div></div>
+  </div>
+</section>
+
+<input type="file" id="file" accept="image/*" hidden>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var stage = $("stage"), cv = $("view"), ctx = cv.getContext("2d");
+  var img = null, imgW = 0, imgH = 0;
+  var scale = 1, tx = 0, ty = 0;
+  var marks = [];
+  var undoStack = [];
+  var boreR = 14;               // 木口の推定半径（画像ピクセル）
+  var markColor = "#FF2D6B";
+  var showNum = true;
+  var records = [];
+
+  /* ---------- 保存 ---------- */
+
+  var LS = "pipecount.v1";
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(LS);
+      if (!raw) return;
+      var o = JSON.parse(raw);
+      records = Array.isArray(o.records) ? o.records : [];
+      if (o.markColor) markColor = o.markColor;
+      if (typeof o.showNum === "boolean") showNum = o.showNum;
+      if (o.sens) $("sens").value = o.sens;
+      if (o.minr) $("minr").value = o.minr;
+    } catch (e) { /* 保存データが壊れていても起動は続ける */ }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(LS, JSON.stringify({
+        records: records,
+        markColor: markColor,
+        showNum: showNum,
+        sens: $("sens").value,
+        minr: $("minr").value
+      }));
+    } catch (e) { /* 容量超過などは無視 */ }
+  }
+
+  /* ---------- 画面 ---------- */
+
+  var dpr = 1;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    var r = stage.getBoundingClientRect();
+    cv.width = Math.max(1, Math.round(r.width * dpr));
+    cv.height = Math.max(1, Math.round(r.height * dpr));
+    render();
+  }
+
+  function viewW() { return cv.width / dpr; }
+  function viewH() { return cv.height / dpr; }
+
+  function fit() {
+    if (!img) return;
+    scale = Math.min(viewW() / imgW, viewH() / imgH) * 0.96;
+    tx = (viewW() - imgW * scale) / 2;
+    ty = (viewH() - imgH * scale) / 2;
+  }
+
+  function markScreenR() {
+    return Math.max(4.5, Math.min(26, boreR * scale * 0.62));
+  }
+
+  function render() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, viewW(), viewH());
+    if (!img) return;
+
+    ctx.imageSmoothingQuality = "high";
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+
+    var r = markScreenR();
+    drawMarks(ctx, function (m) {
+      return [m.x * scale + tx, m.y * scale + ty];
+    }, r, showNum && r >= 8.5);
+  }
+
+  function drawMarks(c, project, r, numbers) {
+    c.lineCap = "round";
+    c.lineJoin = "round";
+    c.font = "600 " + Math.round(r * 1.05) + "px " + "ui-monospace, Menlo, Consolas, monospace";
+    c.textAlign = "center";
+    c.textBaseline = "middle";
+
+    for (var i = 0; i < marks.length; i++) {
+      var p = project(marks[i]);
+      var x = p[0], y = p[1];
+
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      c.strokeStyle = "rgba(6,10,14,.6)";
+      c.lineWidth = Math.max(2.6, r * 0.34);
+      c.stroke();
+      c.strokeStyle = markColor;
+      c.lineWidth = Math.max(1.4, r * 0.19);
+      c.stroke();
+
+      c.beginPath();
+      c.arc(x, y, Math.max(1, r * 0.13), 0, Math.PI * 2);
+      c.fillStyle = markColor;
+      c.fill();
+
+      if (numbers) {
+        var ty2 = y - r - Math.max(6, r * 0.72);
+        c.lineWidth = Math.max(2.4, r * 0.42);
+        c.strokeStyle = "rgba(6,10,14,.82)";
+        c.strokeText(String(i + 1), x, ty2);
+        c.fillStyle = "#fff";
+        c.fillText(String(i + 1), x, ty2);
+      }
+    }
+  }
+
+  /* ---------- 状態表示 ---------- */
+
+  function updateCount() {
+    $("count").textContent = marks.length;
+    $("btn-undo").disabled = undoStack.length === 0;
+    $("save-label").textContent = "この本数を記録（" + marks.length + "本）";
+  }
+
+  var zoomTimer = null;
+
+  function flashZoom() {
+    if (!img) return;
+    var t = $("zoomtag");
+    t.textContent = Math.round(scale * 100) + "%";
+    t.classList.add("on");
+    clearTimeout(zoomTimer);
+    zoomTimer = setTimeout(function () { t.classList.remove("on"); }, 900);
+  }
+
+  var toastTimer = null;
+
+  function toast(msg, ms) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("on"); }, ms || 2600);
+  }
+
+  function pushUndo() {
+    undoStack.push(marks.map(function (m) { return { x: m.x, y: m.y }; }));
+    if (undoStack.length > 50) undoStack.shift();
+  }
+
+  /* ---------- 画像読み込み ---------- */
+
+  function loadFile(file) {
+    if (!file || !/^image\//.test(file.type)) {
+      toast("画像ファイルを選んでください");
+      return;
+    }
+    var url = URL.createObjectURL(file);
+    var im = new Image();
+    im.onload = function () {
+      img = im; imgW = im.naturalWidth; imgH = im.naturalHeight;
+      marks = []; undoStack = [];
+      boreR = Math.max(6, Math.min(imgW, imgH) / 45);
+      fit();
+      $("empty").hidden = true;
+      $("btn-detect").disabled = false;
+      $("brandsub").textContent = imgW + " × " + imgH + " px";
+      updateCount();
+      render();
+      flashZoom();
+      toast("「自動検出」を押すか、木口を直接タップして数えてください", 3400);
+    };
+    im.onerror = function () {
+      URL.revokeObjectURL(url);
+      toast("この画像は読み込めませんでした");
+    };
+    im.src = url;
+  }
+
+  $("file").addEventListener("change", function (e) {
+    if (e.target.files && e.target.files[0]) loadFile(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  function pick() { $("file").click(); }
+  $("btn-pick").addEventListener("click", pick);
+  $("btn-pick-big").addEventListener("click", pick);
+
+  stage.addEventListener("dragover", function (e) { e.preventDefault(); });
+  stage.addEventListener("drop", function (e) {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+
+  window.addEventListener("paste", function (e) {
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") === 0) { loadFile(items[i].getAsFile()); break; }
+    }
+  });
+
+  /* ---------- ジェスチャ ---------- */
+
+  var pointers = new Map();
+  var last = null;      // ピンチ用
+  var startPt = null;   // タップ判定用
+  var moved = 0, startTime = 0;
+
+  stage.addEventListener("pointerdown", function (e) {
+    if (!img) return;
+    stage.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) {
+      startPt = { x: e.clientX, y: e.clientY };
+      moved = 0;
+      startTime = Date.now();
+    } else {
+      startPt = null;
+      last = pinchState();
+    }
+  });
+
+  function pinchState() {
+    var a = null, b = null;
+    pointers.forEach(function (v) { if (!a) a = v; else if (!b) b = v; });
+    if (!a || !b) return null;
+    var dx = b.x - a.x, dy = b.y - a.y;
+    return { d: Math.hypot(dx, dy) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+  }
+
+  stage.addEventListener("pointermove", function (e) {
+    if (!img || !pointers.has(e.pointerId)) return;
+    var prev = pointers.get(e.pointerId);
+    var dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 1) {
+      moved += Math.hypot(dx, dy);
+      tx += dx; ty += dy;
+      render();
+    } else if (pointers.size >= 2) {
+      var now = pinchState();
+      if (now && last) {
+        var k = now.d / last.d;
+        zoomAt(now.cx, now.cy, k);
+        tx += now.cx - last.cx;
+        ty += now.cy - last.cy;
+        render();
+        flashZoom();
+      }
+      last = now;
+    }
+  });
+
+  function endPointer(e) {
+    if (!pointers.has(e.pointerId)) return;
+    var wasSingle = pointers.size === 1;
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) last = null;
+
+    if (wasSingle && startPt && moved < 9 && Date.now() - startTime < 500) {
+      tap(startPt.x, startPt.y);
+    }
+    startPt = null;
+  }
+
+  stage.addEventListener("pointerup", endPointer);
+  stage.addEventListener("pointercancel", endPointer);
+
+  function zoomAt(cx, cy, k) {
+    var r = stage.getBoundingClientRect();
+    var sx = cx - r.left, sy = cy - r.top;
+    var ns = Math.max(0.05, Math.min(40, scale * k));
+    k = ns / scale;
+    tx = sx - (sx - tx) * k;
+    ty = sy - (sy - ty) * k;
+    scale = ns;
+  }
+
+  stage.addEventListener("wheel", function (e) {
+    if (!img) return;
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0016));
+    render();
+    flashZoom();
+  }, { passive: false });
+
+  function tap(cx, cy) {
+    var r = stage.getBoundingClientRect();
+    var sx = cx - r.left, sy = cy - r.top;
+    var wx = (sx - tx) / scale, wy = (sy - ty) / scale;
+
+    // 既存の印に当たったら削除、そうでなければ追加
+    var hitR = Math.max(markScreenR() * 1.25, 15) / scale;
+    var best = -1, bestD = Infinity;
+    for (var i = 0; i < marks.length; i++) {
+      var d = Math.hypot(marks[i].x - wx, marks[i].y - wy);
+      if (d < hitR && d < bestD) { bestD = d; best = i; }
+    }
+
+    pushUndo();
+    if (best >= 0) marks.splice(best, 1);
+    else marks.push({ x: wx, y: wy });
+
+    updateCount();
+    render();
+  }
+
+  window.addEventListener("keydown", function (e) {
+    if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undo(); }
+  });
+
+  function undo() {
+    if (!undoStack.length) return;
+    marks = undoStack.pop();
+    updateCount();
+    render();
+  }
+
+  $("btn-undo").addEventListener("click", undo);
+
+  /* ---------- 自動検出 ---------- */
+
+  $("btn-detect").addEventListener("click", function () {
+    if (!img) return;
+    $("busy").classList.add("on");
+    setTimeout(function () {
+      var found;
+      try {
+        found = detect();
+      } catch (err) {
+        $("busy").classList.remove("on");
+        toast("検出できませんでした。タップで数えてください");
+        return;
+      }
+      $("busy").classList.remove("on");
+
+      if (!found.pts.length) {
+        toast("木口を見つけられませんでした。設定で感度を上げるか、明るい写真で試してください", 4200);
+        return;
+      }
+      pushUndo();
+      marks = found.pts;
+      boreR = found.r;
+      updateCount();
+      render();
+      toast(found.pts.length + "本を検出しました。拡大して抜け・重複をタップで直してください", 4200);
+    }, 30);
+  });
+
+  function detect() {
+    var MAX = 1100;
+    var s = Math.min(1, MAX / Math.max(imgW, imgH));
+    var w = Math.max(2, Math.round(imgW * s)), h = Math.max(2, Math.round(imgH * s));
+
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    var x = c.getContext("2d", { willReadFrequently: true });
+    x.drawImage(img, 0, 0, w, h);
+    var d = x.getImageData(0, 0, w, h).data;
+
+    var n = w * h;
+    var gray = new Float32Array(n);
+    for (var i = 0, p = 0; p < n; i += 4, p++) {
+      gray[p] = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+    }
+
+    // 積分画像 → 局所平均で二値化（照明ムラに強い）
+    var W = w + 1;
+    var ii = new Float64Array(W * (h + 1));
+    for (var y = 0; y < h; y++) {
+      var rs = 0;
+      for (var xx = 0; xx < w; xx++) {
+        rs += gray[y * w + xx];
+        ii[(y + 1) * W + xx + 1] = ii[y * W + xx + 1] + rs;
+      }
+    }
+
+    var win = Math.max(15, Math.round(Math.min(w, h) / 14) | 1);
+    var half = win >> 1;
+    var k = parseInt($("sens").value, 10) / 100;
+    var bin = new Uint8Array(n);
+
+    for (var yy = 0; yy < h; yy++) {
+      var y0 = Math.max(0, yy - half), y1 = Math.min(h - 1, yy + half);
+      for (var xw = 0; xw < w; xw++) {
+        var x0 = Math.max(0, xw - half), x1 = Math.min(w - 1, xw + half);
+        var area = (y1 - y0 + 1) * (x1 - x0 + 1);
+        var sum = ii[(y1 + 1) * W + x1 + 1] - ii[y0 * W + x1 + 1] - ii[(y1 + 1) * W + x0] + ii[y0 * W + x0];
+        bin[yy * w + xw] = gray[yy * w + xw] < (sum / area) * (1 - k) ? 1 : 0;
+      }
+    }
+
+    // 連結成分（4近傍）
+    var lab = new Int32Array(n).fill(-1);
+    var stack = new Int32Array(n);
+    var blobs = [];
+
+    for (var q = 0; q < n; q++) {
+      if (!bin[q] || lab[q] >= 0) continue;
+      var id = blobs.length;
+      var sp = 0;
+      stack[sp++] = q;
+      lab[q] = id;
+      var cnt = 0, sX = 0, sY = 0;
+      var mnx = 1e9, mny = 1e9, mxx = -1, mxy = -1;
+
+      while (sp > 0) {
+        var cur = stack[--sp];
+        var cy2 = (cur / w) | 0, cx2 = cur - cy2 * w;
+        cnt++; sX += cx2; sY += cy2;
+        if (cx2 < mnx) mnx = cx2;
+        if (cx2 > mxx) mxx = cx2;
+        if (cy2 < mny) mny = cy2;
+        if (cy2 > mxy) mxy = cy2;
+
+        if (cx2 > 0 && bin[cur - 1] && lab[cur - 1] < 0) { lab[cur - 1] = id; stack[sp++] = cur - 1; }
+        if (cx2 < w - 1 && bin[cur + 1] && lab[cur + 1] < 0) { lab[cur + 1] = id; stack[sp++] = cur + 1; }
+        if (cy2 > 0 && bin[cur - w] && lab[cur - w] < 0) { lab[cur - w] = id; stack[sp++] = cur - w; }
+        if (cy2 < h - 1 && bin[cur + w] && lab[cur + w] < 0) { lab[cur + w] = id; stack[sp++] = cur + w; }
+      }
+
+      if (cnt >= 10) {
+        blobs.push({
+          a: cnt, cx: sX / cnt, cy: sY / cnt,
+          bw: mxx - mnx + 1, bh: mxy - mny + 1
+        });
+      }
+    }
+
+    if (!blobs.length) return { pts: [], r: boreR };
+
+    // 形で足切り（細長い影・帯を落とす）
+    var shaped = blobs.filter(function (b) {
+      var ar = b.bw / b.bh;
+      return ar > 0.35 && ar < 2.9 && b.a / (b.bw * b.bh) > 0.3;
+    });
+    if (!shaped.length) shaped = blobs;
+
+    // 面積の中央値を「標準的な木口」とみなす
+    var areas = shaped.map(function (b) { return b.a; }).sort(function (a, b) { return a - b; });
+    var med = areas[Math.floor(areas.length / 2)];
+    var minRatio = parseInt($("minr").value, 10) / 100;
+
+    var keep = shaped.filter(function (b) {
+      return b.a >= Math.max(10, med * minRatio) && b.a <= med * 3.4;
+    });
+
+    // 近すぎる検出をまとめる（大きいものを優先）
+    keep.sort(function (a, b) { return b.a - a.a; });
+    var medR = Math.sqrt(med / Math.PI);
+    var minGap = medR * 1.15;
+    var out = [];
+    for (var j = 0; j < keep.length; j++) {
+      var ok = true;
+      for (var m = 0; m < out.length; m++) {
+        if (Math.hypot(out[m].cx - keep[j].cx, out[m].cy - keep[j].cy) < minGap) { ok = false; break; }
+      }
+      if (ok) out.push(keep[j]);
+    }
+
+    // 読みやすいよう上→下、左→右に並べ替えて番号を振る
+    var rowH = medR * 1.6;
+    out.sort(function (a, b) {
+      var ra = Math.round(a.cy / rowH), rb = Math.round(b.cy / rowH);
+      return ra !== rb ? ra - rb : a.cx - b.cx;
+    });
+
+    return {
+      pts: out.map(function (b) { return { x: b.cx / s, y: b.cy / s }; }),
+      r: Math.max(5, medR / s)
+    };
+  }
+
+  /* ---------- シート ---------- */
+
+  var openSheet = null;
+
+  function show(el) {
+    if (openSheet) openSheet.classList.remove("on");
+    openSheet = el;
+    el.classList.add("on");
+    el.setAttribute("aria-hidden", "false");
+    $("scrim").classList.add("on");
+  }
+
+  function hide() {
+    if (openSheet) {
+      openSheet.classList.remove("on");
+      openSheet.setAttribute("aria-hidden", "true");
+    }
+    openSheet = null;
+    $("scrim").classList.remove("on");
+  }
+
+  $("scrim").addEventListener("click", hide);
+  Array.prototype.forEach.call(document.querySelectorAll("[data-close]"), function (b) {
+    b.addEventListener("click", hide);
+  });
+  window.addEventListener("keydown", function (e) { if (e.key === "Escape") hide(); });
+
+  $("btn-settings").addEventListener("click", function () { show($("sheet-settings")); });
+  $("btn-records").addEventListener("click", function () { show($("sheet-records")); });
+
+  /* ---------- 設定 ---------- */
+
+  $("sens").addEventListener("input", function () { $("sens-val").textContent = this.value; save(); });
+  $("minr").addEventListener("input", function () { $("minr-val").textContent = this.value + "%"; save(); });
+
+  $("swatches").addEventListener("click", function (e) {
+    var b = e.target.closest(".swatch");
+    if (!b) return;
+    markColor = b.dataset.color;
+    Array.prototype.forEach.call(this.querySelectorAll(".swatch"), function (s) {
+      s.setAttribute("aria-pressed", String(s === b));
+    });
+    save();
+    render();
+  });
+
+  $("opt-num").addEventListener("change", function () {
+    showNum = this.checked;
+    save();
+    render();
+  });
+
+  $("btn-clear").addEventListener("click", function () {
+    if (!marks.length) { toast("消す印がありません"); return; }
+    pushUndo();
+    marks = [];
+    updateCount();
+    render();
+    hide();
+    toast("印をすべて消しました。「1つ戻す」で元に戻せます");
+  });
+
+  /* ---------- 記録 ---------- */
+
+  function renderRecords() {
+    var list = $("reclist");
+    list.textContent = "";
+    var total = 0;
+
+    if (!records.length) {
+      var e = document.createElement("div");
+      e.className = "none";
+      e.textContent = "まだ記録がありません。";
+      list.appendChild(e);
+    }
+
+    records.forEach(function (r, idx) {
+      total += r.count;
+      var row = document.createElement("div");
+      row.className = "rec";
+
+      var meta = document.createElement("div");
+      meta.className = "meta";
+      var b = document.createElement("b");
+      b.textContent = r.place || "（場所なし）";
+      var sp = document.createElement("span");
+      sp.textContent = (r.size ? r.size + " · " : "") + r.time;
+      meta.appendChild(b);
+      meta.appendChild(sp);
+
+      var n = document.createElement("div");
+      n.className = "n";
+      n.textContent = r.count;
+
+      var del = document.createElement("button");
+      del.className = "del";
+      del.type = "button";
+      del.setAttribute("aria-label", "この記録を削除");
+      del.textContent = "×";
+      del.addEventListener("click", function () {
+        records.splice(idx, 1);
+        save();
+        renderRecords();
+      });
+
+      row.appendChild(meta);
+      row.appendChild(n);
+      row.appendChild(del);
+      list.appendChild(row);
+    });
+
+    $("rec-total").textContent = total + " 本";
+  }
+
+  function stamp() {
+    var d = new Date();
+    var p = function (v) { return String(v).padStart(2, "0"); };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+
+  $("btn-save").addEventListener("click", function () {
+    if (!marks.length) { toast("先にカウントしてください"); return; }
+    records.push({
+      place: $("in-place").value.trim(),
+      size: $("in-size").value.trim(),
+      count: marks.length,
+      time: stamp()
+    });
+    save();
+    renderRecords();
+    toast(marks.length + "本を記録しました");
+  });
+
+  function csv() {
+    var rows = [["日時", "場所・パレット", "サイズ", "本数"]];
+    records.forEach(function (r) { rows.push([r.time, r.place, r.size, r.count]); });
+    return rows.map(function (r) {
+      return r.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(",");
+    }).join("\r\n");
+  }
+
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+  }
+
+  $("btn-csv").addEventListener("click", function () {
+    if (!records.length) { toast("記録がありません"); return; }
+    download(new Blob(["﻿" + csv()], { type: "text/csv;charset=utf-8" }), "棚卸カウント_" + stamp().replace(/[: ]/g, "-") + ".csv");
+    toast("CSVを保存しました");
+  });
+
+  $("btn-copy").addEventListener("click", function () {
+    if (!records.length) { toast("記録がありません"); return; }
+    var tsv = records.map(function (r) {
+      return [r.time, r.place, r.size, r.count].join("\t");
+    }).join("\n");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(tsv).then(function () {
+        toast("コピーしました。Excelやスプレッドシートにそのまま貼り付けられます");
+      }, function () { toast("コピーできませんでした"); });
+    } else {
+      toast("この環境ではコピーできません。CSVを保存してください");
+    }
+  });
+
+  $("btn-png").addEventListener("click", function () {
+    if (!img) { toast("先に写真を読み込んでください"); return; }
+    var c = document.createElement("canvas");
+    c.width = imgW; c.height = imgH;
+    var g = c.getContext("2d");
+    g.drawImage(img, 0, 0);
+
+    var r = Math.max(4, boreR * 0.62);
+    drawMarks(g, function (m) { return [m.x, m.y]; }, r, showNum);
+
+    // 右上に本数の焼き込み（棚卸の証跡用）
+    var pad = Math.max(10, imgW * 0.012);
+    var fs = Math.max(18, imgW * 0.035);
+    g.font = "700 " + Math.round(fs) + "px ui-monospace, Menlo, Consolas, monospace";
+    g.textAlign = "right";
+    g.textBaseline = "top";
+    var label = marks.length + " 本";
+    var tw = g.measureText(label).width;
+    g.fillStyle = "rgba(8,12,16,.72)";
+    g.fillRect(imgW - tw - pad * 2.2, pad * 0.6, tw + pad * 1.6, fs * 1.5);
+    g.fillStyle = "#fff";
+    g.fillText(label, imgW - pad * 1.4, pad * 0.6 + fs * 0.28);
+
+    c.toBlob(function (blob) {
+      if (!blob) { toast("画像を作成できませんでした"); return; }
+      var place = $("in-place").value.trim().replace(/[\\/:*?"<>|]/g, "") || "カウント";
+      download(blob, place + "_" + marks.length + "本.png");
+      toast("番号付き画像を保存しました");
+    }, "image/png");
+  });
+
+  /* ---------- 起動 ---------- */
+
+  load();
+  $("sens-val").textContent = $("sens").value;
+  $("minr-val").textContent = $("minr").value + "%";
+  $("opt-num").checked = showNum;
+  Array.prototype.forEach.call(document.querySelectorAll(".swatch"), function (s) {
+    s.setAttribute("aria-pressed", String(s.dataset.color === markColor));
+  });
+  renderRecords();
+  updateCount();
+
+  new ResizeObserver(function () {
+    var had = !!img;
+    var oldW = viewW(), oldH = viewH();
+    resize();
+    if (had && oldW > 0) {
+      tx += (viewW() - oldW) / 2;
+      ty += (viewH() - oldH) / 2;
+      render();
+    }
+  }).observe(stage);
+
+  resize();
+})();
+</script>
+</body>
+</html>
