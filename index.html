@@ -106,6 +106,10 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .liveGrid { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; grid-template-columns: repeat(3, 1fr);
   border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.35) }
 .liveGrid i { border: 1px solid rgba(255,255,255,.85) }
+.hint2 { margin: 0; padding: 10px 12px; border-radius: 8px; border: 2px dashed var(--accent); font-weight: 700; display: flex; gap: 10px; align-items: baseline }
+.hint2 em { font: 700 .75rem var(--f-mono); font-style: normal; background: var(--accent); color: var(--accent-ink); padding: 2px 8px; border-radius: 99px; flex: none }
+.nextAct { outline: 3px solid var(--accent); outline-offset: 2px; animation: nudge 1.6s ease-in-out infinite }
+@keyframes nudge { 50% { outline-offset: 5px } }
 .vh { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none }
 dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: .88rem }
 dt { font: 700 .9rem var(--f-mono) }
@@ -161,6 +165,7 @@ dd { margin: 0; color: var(--muted) }
           <div class="stepfig" aria-hidden="true"><span class="upbar" id="stepUp"><i></i><i></i><i></i></span><span class="face3" id="stepFace"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
           <div class="steptxt"><b id="stepNo"></b><span id="camGuide"></span><span class="small" id="stepHow"></span></div>
         </div>
+        <p class="hint2" id="camHint" role="status" aria-live="polite"></p>
         <div class="row">
           <button id="camLive" class="primary grow">カメラで読み取る</button>
           <button id="camPick" class="grow">写真を選ぶ</button>
@@ -630,6 +635,15 @@ function buildCam() {
   cv.addEventListener("pointerup", function () { drag = null; });
   camUI();
 }
+function camHint() {
+  var nm = CAM_NAME[cam.face].replace(/\(.*/, ""), done = Object.keys(cam.data).length, t, act;
+  if (done === 6 && !cam.off) { t = "6面そろいました。「読み取った色をキューブに反映」を押してください"; act = ["camApply"]; }
+  else if (liveStream) { t = nm + "の面を枠の9マスに合わせて「この面を読み取る」を押してください"; act = ["liveTake"]; }
+  else if (cam.off) { t = "写真をドラッグして白い枠を9マスに合わせ(大きさはスライダー)、「この面を読み取る」を押してください"; act = ["camTake"]; }
+  else { t = (done ? "次は" : "") + nm + "の面です。「カメラで読み取る」か「写真を選ぶ」で" + nm + "が正面の写真を用意してください"; act = ["camLive", "camPick"]; }
+  $("camHint").innerHTML = "<em>次</em><span></span>"; $("camHint").lastChild.textContent = t;
+  ["camLive", "camPick", "camTake", "liveTake", "camApply"].forEach(function (id) { $(id).classList.toggle("nextAct", act.indexOf(id) >= 0); });
+}
 function camUI() {
   [].forEach.call($("camFaces").children, function (b) {
     var f = +b.dataset.f, d = cam.data[f];
@@ -647,6 +661,8 @@ function camUI() {
   var n = 6 - Object.keys(cam.data).length;
   $("camApply").disabled = n > 0;
   $("camApply").textContent = n > 0 ? "読み取った色をキューブに反映(あと" + n + "面)" : "読み取った色をキューブに反映";
+  $("camApply").classList.toggle("primary", n === 0);
+  camHint();
 }
 function loadPhoto(file) {
   var img = new Image(), url = URL.createObjectURL(file);
@@ -656,7 +672,8 @@ function loadPhoto(file) {
     var x = c.getContext("2d"); x.drawImage(img, 0, 0, c.width, c.height);
     cam.off = c; cam.px = x.getImageData(0, 0, c.width, c.height); cam.cx = cam.cy = 0.5;
     URL.revokeObjectURL(url);
-    $("camCanvas").hidden = false; $("camCtrl").hidden = false; drawCam();
+    stopLive(); $("camCanvas").hidden = false; $("camCtrl").hidden = false; drawCam(); camHint();
+    $("camHint").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
   };
   img.onerror = function () { setMsg("画像を読み込めませんでした。別の写真を選んでください。", true); };
   img.src = url;
@@ -671,7 +688,7 @@ async function startLive() {
   var v = $("camVideo"); v.srcObject = liveStream; await v.play().catch(function () {});
   $("liveBox").hidden = false; $("liveCtrl").hidden = false; $("camCanvas").hidden = true; $("camCtrl").hidden = true;
   v.onloadedmetadata = sizeLiveGrid; sizeLiveGrid();
-  setMsg("");
+  setMsg(""); camHint();
 }
 function sizeLiveGrid() {
   var r = $("camVideo").getBoundingClientRect(), s = LIVE_FR * Math.min(r.width, r.height);
@@ -679,7 +696,7 @@ function sizeLiveGrid() {
 }
 function stopLive() {
   if (liveStream) liveStream.getTracks().forEach(function (t) { t.stop(); });
-  liveStream = null; $("liveBox").hidden = true; $("liveCtrl").hidden = true;
+  liveStream = null; $("liveBox").hidden = true; $("liveCtrl").hidden = true; camHint();
 }
 function takeLive() {
   var v = $("camVideo"); if (!v.videoWidth) return;
@@ -717,8 +734,8 @@ function takeFace() {
   }
   cam.data[cam.face] = out;
   var next = CAM_ORDER.filter(function (f) { return !cam.data[f]; })[0];
-  if (next !== undefined) { cam.face = next; setMsg("読み取りました。次は" + CAM_NAME[next] + "の面を撮影してください。"); }
-  else setMsg("6面すべて読み取りました。「キューブに反映」を押してください。");
+  if (next !== undefined) { cam.face = next; setMsg(""); }
+  else setMsg("");
   $("camCanvas").hidden = true; $("camCtrl").hidden = true; cam.off = cam.px = null;
   camUI();
 }
