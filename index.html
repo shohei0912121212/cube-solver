@@ -89,7 +89,15 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .camf[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft) }
 .mini { display: grid; grid-template-columns: repeat(3, 8px); gap: 1px; padding: 2px; background: var(--plastic); border-radius: 3px }
 .mini span { width: 8px; height: 8px; border-radius: 1px; background: var(--line) }
-.camguide { margin: 0; font-weight: 700 }
+.step { display: flex; gap: 14px; align-items: center; padding: 12px; border-radius: 8px; background: var(--accent-soft) }
+.stepfig { display: grid; gap: 3px; flex: none }
+.upbar, .face3 { display: grid; grid-template-columns: repeat(3, 18px); gap: 2px; padding: 2px; background: var(--plastic); border-radius: 3px }
+.upbar i { height: 7px; border-radius: 1px } .face3 i { height: 18px; border-radius: 2px; background: #7d828c }
+.steptxt { display: grid; gap: 2px; min-width: 0 }
+.steptxt b { font-size: .8rem; color: var(--accent) }
+#camGuide { font-weight: 700; font-size: 1rem }
+.liveTag { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); z-index: 1; background: rgba(0,0,0,.7); color: #fff; font-weight: 700; font-size: .85rem; padding: 4px 12px; border-radius: 99px; white-space: nowrap }
+.liveUp { position: absolute; left: 0; right: 0; top: -16px; height: 10px; border-radius: 3px; border: 1px solid #fff }
 #camCanvas { max-width: 100%; max-height: 60vh; width: auto; height: auto; margin: 0 auto; border-radius: 8px; touch-action: none; cursor: move; display: block }
 #camCanvas[hidden] { display: none }
 .live { position: relative; border-radius: 8px; overflow: hidden; background: var(--plastic) }
@@ -149,7 +157,10 @@ dd { margin: 0; color: var(--muted) }
         <h2>写真で読み取る</h2>
         <p class="small">「カメラで読み取る」で枠に9マスを合わせて1面ずつ読み取ります。カメラが使えない画面では、先に撮った写真を「写真を選ぶ」で1枚ずつ選び、枠を合わせて読み取ってください。</p>
         <div class="camfaces" id="camFaces"></div>
-        <p class="camguide" id="camGuide"></p>
+        <div class="step">
+          <div class="stepfig" aria-hidden="true"><span class="upbar" id="stepUp"><i></i><i></i><i></i></span><span class="face3" id="stepFace"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
+          <div class="steptxt"><b id="stepNo"></b><span id="camGuide"></span><span class="small" id="stepHow"></span></div>
+        </div>
         <div class="row">
           <button id="camLive" class="primary grow">カメラで読み取る</button>
           <button id="camPick" class="grow">写真を選ぶ</button>
@@ -157,7 +168,8 @@ dd { margin: 0; color: var(--muted) }
         </div>
         <div class="live" id="liveBox" hidden>
           <video id="camVideo" playsinline muted></video>
-          <div class="liveGrid" id="liveGrid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <span class="liveTag" id="liveTag"></span>
+          <div class="liveGrid" id="liveGrid"><b class="liveUp" id="liveUp"></b><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         </div>
         <div class="row" id="liveCtrl" hidden>
           <button id="liveTake" class="primary grow">この面を読み取る</button>
@@ -586,14 +598,17 @@ function paintAt(idx) {
 // 各面の中心ステッカーを同じ照明下の基準色とし、Lab色空間で最も近い色に割り当てる(各色9枚の制約つき)
 var CAM_ORDER = [2, 1, 5, 4, 0, 3];
 var CAM_NAME = ["白(上)", "赤(右)", "緑(前)", "黄(下)", "オレンジ(左)", "青(奥)"];
-var CAM_UP = ["青", "白", "白", "緑", "白", "白"];
+var CAM_UP = ["青", "白", "白", "緑", "白", "白"], CAM_UPF = [5, 0, 0, 2, 0, 0];
+var CAM_HOW = ["緑を正面・白を上に戻してから、手前に倒す(白が正面、青が上になる)", "そのままキューブを左へ90°回す(白は上のまま)",
+  "緑の中心を正面、白の中心を上にして持つ", "緑を正面・白を上に戻してから、奥に倒す(黄が正面、緑が上になる)",
+  "さらに左へ90°回す(白は上のまま)", "さらに左へ90°回す(白は上のまま)"];
 var cam = { face: 2, off: null, px: null, cx: 0.5, cy: 0.5, size: 0.7, data: {} };
 function buildCam() {
   var box = $("camFaces");
   CAM_ORDER.forEach(function (f) {
     var b = document.createElement("button"); b.className = "camf"; b.dataset.f = f;
     var mini = '<span class="mini">' + new Array(10).join("<span></span>") + "</span>";
-    b.innerHTML = mini + "<span>" + CAM_NAME[f].replace(/\(.*/, "") + "</span>";
+    b.innerHTML = mini + "<span>" + (CAM_ORDER.indexOf(f) + 1) + " " + CAM_NAME[f].replace(/\(.*/, "") + "</span>";
     b.onclick = function () { cam.face = f; camUI(); };
     box.appendChild(b);
   });
@@ -621,7 +636,14 @@ function camUI() {
     b.setAttribute("aria-pressed", f === cam.face ? "true" : "false");
     [].forEach.call(b.firstChild.children, function (s, k) { s.style.background = d ? "rgb(" + d[k].join(",") + ")" : ""; });
   });
-  $("camGuide").textContent = CAM_NAME[cam.face].replace(/\(.*/, "") + "の面を正面に向け、" + CAM_UP[cam.face] + "の面が上になるように持って撮影";
+  var nm = CAM_NAME[cam.face].replace(/\(.*/, ""), no = CAM_ORDER.indexOf(cam.face) + 1;
+  $("stepNo").textContent = "ステップ " + no + " / 6";
+  $("camGuide").textContent = nm + "が正面、" + CAM_UP[cam.face] + "が上";
+  $("stepHow").textContent = CAM_HOW[cam.face];
+  [].forEach.call($("stepUp").children, function (i) { i.style.background = COLORS[CAM_UPF[cam.face]]; });
+  $("stepFace").children[4].style.background = COLORS[cam.face];
+  $("liveTag").textContent = no + "/6 " + nm + "が正面・" + CAM_UP[cam.face] + "が上";
+  $("liveUp").style.background = COLORS[CAM_UPF[cam.face]];
   var n = 6 - Object.keys(cam.data).length;
   $("camApply").disabled = n > 0;
   $("camApply").textContent = n > 0 ? "読み取った色をキューブに反映(あと" + n + "面)" : "読み取った色をキューブに反映";
