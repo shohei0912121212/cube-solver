@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>キューブソルバー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=JetBrains+Mono:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: 左に3Dキューブと解法プレイヤー、右に展開図エディタと手動回転。スマホでは縦1列 */
+:root {
+  --bg: #e9ecf1; --surface: #ffffff; --line: #d4d9e2; --ink: #171a21; --muted: #5b6372;
+  --accent: #2d55c8; --accent-ink: #ffffff; --accent-soft: #dfe6fa;
+  --ok: #1d8a4f; --ng: #c23a32;
+  --plastic: #15171c;
+  --c0: #f4f5f0; --c1: #d1262c; --c2: #1aa14a; --c3: #f6d026; --c4: #f27a1a; --c5: #1f5fd6;
+  --f-display: "Dela Gothic One", "Hiragino Sans", system-ui, sans-serif;
+  --f-body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111318; --surface: #1a1d24; --line: #2c313b; --ink: #e9ebef; --muted: #9aa1ae;
+  --accent: #7c9bff; --accent-ink: #0d1020; --accent-soft: #232b45; --ok: #49c483; --ng: #ff7a70; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111318; --surface: #1a1d24; --line: #2c313b; --ink: #e9ebef; --muted: #9aa1ae;
+  --accent: #7c9bff; --accent-ink: #0d1020; --accent-soft: #232b45; --ok: #49c483; --ng: #ff7a70; color-scheme: dark }
+
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+html, body { margin: 0 }
+body { background: var(--bg); color: var(--ink); font: 15px/1.6 var(--f-body); padding: 0 16px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 20px 40px; display: grid; gap: 18px }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px }
+h1 { font: 400 1.7rem/1.2 var(--f-display); margin: 0; letter-spacing: .02em }
+header p { margin: 0; color: var(--muted); font-size: .9rem }
+h2 { font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0; font-weight: 700 }
+.grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; align-items: start }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr) } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 14px; min-width: 0 }
+.col { display: grid; gap: 18px; min-width: 0 }
+
+/* 3D */
+.stage { position: relative; height: 340px; perspective: 1000px; touch-action: none; cursor: grab; user-select: none; overflow: hidden;
+  border-radius: 8px; background: radial-gradient(circle at 50% 45%, var(--accent-soft), transparent 70%) }
+.stage:active { cursor: grabbing }
+.cube { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d }
+.cubie { position: absolute; left: 0; top: 0; transform-style: preserve-3d }
+.fc { position: absolute; background: var(--plastic); border-radius: 3px; backface-visibility: hidden }
+.fc i { position: absolute; inset: 7%; border-radius: 4px; display: block }
+.chip { position: absolute; top: 10px; left: 10px; font-size: .8rem; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line) }
+.chip.ok { color: var(--ok); border-color: currentColor } .chip.ng { color: var(--ng); border-color: currentColor }
+.hint { position: absolute; bottom: 8px; right: 12px; font-size: .75rem; color: var(--muted) }
+
+/* buttons */
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+button, select { font: 700 .9rem var(--f-body); border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); padding: 8px 14px; cursor: pointer }
+button:hover:not(:disabled) { border-color: var(--accent) }
+button:focus-visible, select:focus-visible, .st:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+button:disabled { opacity: .45; cursor: not-allowed }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.grow { flex: 1 }
+
+/* solution */
+.msg { font-size: .9rem; color: var(--muted); min-height: 1.4em }
+.msg.ng { color: var(--ng) }
+.moves { display: flex; flex-wrap: wrap; gap: 6px }
+.mv { font: 700 .95rem var(--f-mono); padding: 4px 8px; min-width: 2.6em; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); cursor: pointer; position: relative }
+.mv.done { opacity: .45 }
+.mv.cur { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); opacity: 1 }
+.now { display: flex; gap: 14px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft) }
+.now b { font: 700 1.8rem/1 var(--f-mono); min-width: 2.2em; text-align: center }
+.now span { font-size: .92rem }
+.count { font: 500 .85rem var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums }
+
+/* net editor */
+.palette { display: flex; gap: 8px; flex-wrap: wrap }
+.pal { width: 38px; height: 38px; border-radius: 8px; border: 2px solid var(--line); padding: 0 }
+.pal[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 2px var(--surface) inset }
+.net { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; max-width: 460px }
+.st { aspect-ratio: 1; border-radius: 3px; border: 1px solid rgba(0,0,0,.25); cursor: pointer; padding: 0 }
+.st.center { cursor: default; position: relative }
+.st.center::after { content: attr(data-l); position: absolute; inset: 0; display: grid; place-items: center; font: 700 .7rem var(--f-mono); color: rgba(0,0,0,.55) }
+.turns { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px }
+.turns button { font-family: var(--f-mono); padding: 7px 0 }
+.small { font-size: .82rem; color: var(--muted); margin: 0 }
+.camfaces { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px }
+.camf { display: grid; gap: 4px; justify-items: center; padding: 6px 2px; font-size: .72rem; font-weight: 700 }
+.camf[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft) }
+.mini { display: grid; grid-template-columns: repeat(3, 8px); gap: 1px; padding: 2px; background: var(--plastic); border-radius: 3px }
+.mini span { width: 8px; height: 8px; border-radius: 1px; background: var(--line) }
+.camguide { margin: 0; font-weight: 700 }
+#camCanvas { max-width: 100%; max-height: 60vh; width: auto; height: auto; margin: 0 auto; border-radius: 8px; touch-action: none; cursor: move; display: block }
+#camCanvas[hidden] { display: none }
+.live { position: relative; border-radius: 8px; overflow: hidden; background: var(--plastic) }
+.live[hidden] { display: none }
+#camVideo { display: block; width: 100%; height: auto }
+.liveGrid { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; grid-template-columns: repeat(3, 1fr);
+  border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.35) }
+.liveGrid i { border: 1px solid rgba(255,255,255,.85) }
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: .88rem }
+dt { font: 700 .9rem var(--f-mono) }
+dd { margin: 0; color: var(--muted) }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>キューブソルバー</h1>
+    <p>色を入力して「解く」を押すと、揃えるまでの手順を3Dで1手ずつ再生します。</p>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <section class="panel">
+        <div class="stage" id="stage">
+          <div class="cube" id="cube"></div>
+          <div class="chip" id="chip">—</div>
+          <div class="hint">ドラッグで視点を回転</div>
+        </div>
+        <div class="row">
+          <button class="primary grow" id="btnSolve" disabled>準備中…</button>
+          <button id="btnScramble">スクランブル</button>
+          <button id="btnReset">完成状態に戻す</button>
+        </div>
+        <p class="msg" id="msg"></p>
+      </section>
+
+      <section class="panel" id="solPanel">
+        <div class="row"><h2 class="grow">解法</h2><span class="count" id="count">0 / 0</span></div>
+        <div class="now"><b id="nowMove">–</b><span id="nowText">「解く」を押すと、ここに次の1手の説明が出ます。</span></div>
+        <div class="moves" id="moves"></div>
+        <div class="row">
+          <button id="btnFirst" aria-label="最初へ">⏮</button>
+          <button id="btnPrev" aria-label="1手戻す">◀ 戻す</button>
+          <button id="btnNext" class="primary" aria-label="次の1手">次へ ▶</button>
+          <button id="btnPlay">自動再生</button>
+          <button id="btnLast" aria-label="最後へ">⏭</button>
+          <select id="speed" aria-label="再生速度"><option value="700">ゆっくり</option><option value="380" selected>ふつう</option><option value="180">はやい</option></select>
+        </div>
+        <p class="small">手順は白を上・緑を手前にした向きが基準です。持ち替えずに順番どおり回してください。</p>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel" id="camPanel">
+        <h2>写真で読み取る</h2>
+        <p class="small">「カメラで読み取る」で枠に9マスを合わせて1面ずつ読み取ります。カメラが使えない画面では、先に撮った写真を「写真を選ぶ」で1枚ずつ選び、枠を合わせて読み取ってください。</p>
+        <div class="camfaces" id="camFaces"></div>
+        <p class="camguide" id="camGuide"></p>
+        <div class="row">
+          <button id="camLive" class="primary grow">カメラで読み取る</button>
+          <button id="camPick" class="grow">写真を選ぶ</button>
+          <input type="file" id="camFile" accept="image/*" class="vh" tabindex="-1" aria-hidden="true">
+        </div>
+        <div class="live" id="liveBox" hidden>
+          <video id="camVideo" playsinline muted></video>
+          <div class="liveGrid" id="liveGrid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+        <div class="row" id="liveCtrl" hidden>
+          <button id="liveTake" class="primary grow">この面を読み取る</button>
+          <button id="liveStop">カメラを閉じる</button>
+        </div>
+        <canvas id="camCanvas" hidden></canvas>
+        <div class="row" id="camCtrl" hidden>
+          <label class="small grow" for="camSize">枠の大きさ <input type="range" id="camSize" min="20" max="100" value="70" style="vertical-align:middle;width:55%"></label>
+          <button id="camTake" class="primary">この面を読み取る</button>
+        </div>
+        <div class="row"><button id="camApply" class="grow" disabled>読み取った色をキューブに反映(あと6面)</button></div>
+      </section>
+
+      <section class="panel">
+        <h2>色を入力</h2>
+        <p class="small">色を選んでから、展開図か3Dキューブのマスをタップします。中心の色は固定です(上=白、手前=緑)。</p>
+        <div class="palette" id="palette"></div>
+        <div class="net" id="net"></div>
+        <div class="row"><button id="btnClear">中心以外をクリア</button></div>
+      </section>
+
+      <section class="panel">
+        <h2>手動で回す</h2>
+        <div class="turns" id="turns"></div>
+        <div class="row">
+          <input id="algo" class="grow" style="font:500 .9rem var(--f-mono);padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-width:0" placeholder="例: R U R' U'" aria-label="手順を入力">
+          <button id="btnAlgo">適用</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>記号の読み方</h2>
+        <dl>
+          <dt>U / D</dt><dd>上面 / 下面を、その面を正面から見て時計回りに90°</dd>
+          <dt>R / L</dt><dd>右面 / 左面を時計回りに90°</dd>
+          <dt>F / B</dt><dd>手前の面 / 奥の面を時計回りに90°</dd>
+          <dt>′(R′)</dt><dd>反時計回りに90°</dd>
+          <dt>2(R2)</dt><dd>180°回す</dd>
+        </dl>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- ===== コア: キューブモデルとKociemba二段階法ソルバー(Workerと共用) ===== -->
+<script id="core">
+"use strict";
+// 面の番号: 0=U 1=R 2=F 3=D 4=L 5=B。ステッカー番号は U1..U9, R1..R9, F, D, L, B の順(0..53)
+var FACES = "URFDLB";
+var CF = [[8,9,20],[6,18,38],[0,36,47],[2,45,11],[29,26,15],[27,44,24],[33,53,42],[35,17,51]];
+var EF = [[5,10],[7,19],[3,37],[1,46],[32,16],[28,25],[30,43],[34,52],[23,12],[21,41],[50,39],[48,14]];
+var CC = [[0,1,2],[0,2,4],[0,4,5],[0,5,1],[3,2,1],[3,4,2],[3,5,4],[3,1,5]];
+var EC = [[0,1],[0,2],[0,4],[0,5],[3,1],[3,2],[3,4],[3,5],[2,1],[2,4],[5,4],[5,1]];
+
+function idCube() { return { cp:[0,1,2,3,4,5,6,7], co:[0,0,0,0,0,0,0,0], ep:[0,1,2,3,4,5,6,7,8,9,10,11], eo:[0,0,0,0,0,0,0,0,0,0,0,0] }; }
+function mul(a, b) {
+  var r = { cp:new Array(8), co:new Array(8), ep:new Array(12), eo:new Array(12) }, i;
+  for (i = 0; i < 8; i++) { r.cp[i] = a.cp[b.cp[i]]; r.co[i] = (a.co[b.cp[i]] + b.co[i]) % 3; }
+  for (i = 0; i < 12; i++) { r.ep[i] = a.ep[b.ep[i]]; r.eo[i] = (a.eo[b.ep[i]] + b.eo[i]) % 2; }
+  return r;
+}
+var Z12 = [0,0,0,0,0,0,0,0,0,0,0,0];
+var BASIC = [
+  { cp:[3,0,1,2,4,5,6,7], co:[0,0,0,0,0,0,0,0], ep:[3,0,1,2,4,5,6,7,8,9,10,11], eo:Z12 },
+  { cp:[4,1,2,0,7,5,6,3], co:[2,0,0,1,1,0,0,2], ep:[8,1,2,3,11,5,6,7,4,9,10,0], eo:Z12 },
+  { cp:[1,5,2,3,0,4,6,7], co:[1,2,0,0,2,1,0,0], ep:[0,9,2,3,4,8,6,7,1,5,10,11], eo:[0,1,0,0,0,1,0,0,1,1,0,0] },
+  { cp:[0,1,2,3,5,6,7,4], co:[0,0,0,0,0,0,0,0], ep:[0,1,2,3,5,6,7,4,8,9,10,11], eo:Z12 },
+  { cp:[0,2,6,3,4,1,5,7], co:[0,1,2,0,0,2,1,0], ep:[0,1,10,3,4,5,9,7,8,2,6,11], eo:Z12 },
+  { cp:[0,1,3,7,4,5,2,6], co:[0,0,1,2,0,0,2,1], ep:[0,1,2,11,4,5,6,10,8,9,3,7], eo:[0,0,0,1,0,0,0,1,0,0,1,1] }
+];
+// 手番号 m = 面*3 + (0:90°, 1:180°, 2:-90°)
+var MOVES = [];
+(function () { for (var f = 0; f < 6; f++) { var c = BASIC[f]; for (var p = 0; p < 3; p++) { MOVES.push(c); c = mul(c, BASIC[f]); } } })();
+function moveName(m) { return FACES[(m / 3) | 0] + ["", "2", "'"][m % 3]; }
+function parseMoves(s) {
+  var out = [], toks = s.replace(/[’′`]/g, "'").trim().split(/\s+/).filter(Boolean);
+  for (var i = 0; i < toks.length; i++) {
+    var t = toks[i].match(/^([URFDLB])(2'?|'2?|)$/i);
+    if (!t) return null;
+    var f = FACES.indexOf(t[1].toUpperCase()), p = t[2] === "" ? 0 : t[2][0] === "2" || t[2] === "'2" ? 1 : 2;
+    out.push(f * 3 + p);
+  }
+  return out;
+}
+
+// ---- ステッカー幾何(3D表示と回転アニメーション用) ----
+function fIdx(p, n) {
+  var x = p[0], y = p[1], z = p[2];
+  if (n[1] === 1) return (z + 1) * 3 + (x + 1);
+  if (n[0] === 1) return 9 + (1 - y) * 3 + (1 - z);
+  if (n[2] === 1) return 18 + (1 - y) * 3 + (x + 1);
+  if (n[1] === -1) return 27 + (1 - z) * 3 + (x + 1);
+  if (n[0] === -1) return 36 + (1 - y) * 3 + (z + 1);
+  return 45 + (1 - y) * 3 + (1 - x);
+}
+var NORMALS = [[0,1,0],[1,0,0],[0,0,1],[0,-1,0],[-1,0,0],[0,0,-1]]; // 面番号順
+var AX = [[1,1],[0,1],[2,1],[1,-1],[0,-1],[2,-1]]; // 面ごとの [軸, 層]
+var ROT = [
+  function (v) { return [-v[2], v[1], v[0]]; }, function (v) { return [v[0], v[2], -v[1]]; },
+  function (v) { return [v[1], -v[0], v[2]]; }, function (v) { return [v[2], v[1], -v[0]]; },
+  function (v) { return [v[0], -v[2], v[1]]; }, function (v) { return [-v[1], v[0], v[2]]; }
+];
+var STK = [];
+(function () {
+  for (var x = -1; x <= 1; x++) for (var y = -1; y <= 1; y++) for (var z = -1; z <= 1; z++)
+    for (var f = 0; f < 6; f++) { var n = NORMALS[f], p = [x, y, z];
+      if (p[0] * n[0] + p[1] * n[1] + p[2] * n[2] === 1) STK[fIdx(p, n)] = { p: p, n: n }; }
+})();
+var FPERM = [];
+(function () {
+  for (var f = 0; f < 6; f++) {
+    var q = []; for (var i = 0; i < 54; i++) q[i] = i;
+    for (var s = 0; s < 54; s++) { var k = STK[s];
+      if (k.p[AX[f][0]] === AX[f][1]) q[fIdx(ROT[f](k.p), ROT[f](k.n))] = s; }
+    var cur = q; for (var p = 0; p < 3; p++) { FPERM.push(cur); var nx = []; for (i = 0; i < 54; i++) nx[i] = cur[q[i]]; cur = nx; }
+  }
+})();
+function applyF(st, m) { var P = FPERM[m], r = new Array(54); for (var i = 0; i < 54; i++) r[i] = st[P[i]]; return r; }
+function solvedState() { var r = []; for (var i = 0; i < 54; i++) r.push((i / 9) | 0); return r; }
+function isSolved(st) { for (var i = 0; i < 54; i++) if (st[i] !== ((i / 9) | 0)) return false; return true; }
+
+// ---- ステッカー → キューブ(検証つき) ----
+var COLOR_JA = ["白", "赤", "緑", "黄", "オレンジ", "青"];
+function validate(f) {
+  var cnt = [0,0,0,0,0,0], i, j, o;
+  for (i = 0; i < 54; i++) { if (f[i] < 0 || f[i] > 5) return { ok:false, msg:"未入力のマスがあります。" }; cnt[f[i]]++; }
+  for (i = 0; i < 6; i++) if (cnt[i] !== 9) return { ok:false, msg:COLOR_JA[i] + "が" + cnt[i] + "枚あります。各色9枚にしてください。" };
+  var c = { cp:[], co:[], ep:[], eo:[] };
+  for (i = 0; i < 8; i++) {
+    for (o = 0; o < 3; o++) if (f[CF[i][o]] === 0 || f[CF[i][o]] === 3) break;
+    var a = f[CF[i][(o + 1) % 3]], b = f[CF[i][(o + 2) % 3]], top = f[CF[i][o]];
+    c.cp[i] = -1;
+    if (o < 3) for (j = 0; j < 8; j++) if (CC[j][0] === top && CC[j][1] === a && CC[j][2] === b) c.cp[i] = j;
+    if (c.cp[i] < 0) return { ok:false, msg:"実在しない色の組み合わせの角があります。角の3色を確認してください。" };
+    c.co[i] = o;
+  }
+  for (i = 0; i < 12; i++) {
+    var e0 = f[EF[i][0]], e1 = f[EF[i][1]]; c.ep[i] = -1;
+    for (j = 0; j < 12; j++) {
+      if (EC[j][0] === e0 && EC[j][1] === e1) { c.ep[i] = j; c.eo[i] = 0; }
+      if (EC[j][0] === e1 && EC[j][1] === e0) { c.ep[i] = j; c.eo[i] = 1; }
+    }
+    if (c.ep[i] < 0) return { ok:false, msg:"実在しない色の組み合わせの辺があります。辺の2色を確認してください。" };
+  }
+  if (new Set(c.cp).size !== 8) return { ok:false, msg:"同じ角が2つ入力されています。" };
+  if (new Set(c.ep).size !== 12) return { ok:false, msg:"同じ辺が2つ入力されています。" };
+  var s = 0; for (i = 0; i < 8; i++) s += c.co[i];
+  if (s % 3) return { ok:false, msg:"角が1つねじれた状態です(分解しないと起きない配置)。入力を確認してください。" };
+  s = 0; for (i = 0; i < 12; i++) s += c.eo[i];
+  if (s % 2) return { ok:false, msg:"辺が1つ裏返った状態です(分解しないと起きない配置)。入力を確認してください。" };
+  if (parity(c.cp) !== parity(c.ep)) return { ok:false, msg:"2つのパーツが入れ替わった状態です(分解しないと起きない配置)。入力を確認してください。" };
+  return { ok:true, cube:c };
+}
+function parity(a) { var p = 0; for (var i = 0; i < a.length; i++) for (var j = i + 1; j < a.length; j++) if (a[j] < a[i]) p ^= 1; return p; }
+
+// ---- 座標 ----
+function rank(a) { var n = a.length, r = 0; for (var i = 0; i < n; i++) { var c = 0; for (var j = i + 1; j < n; j++) if (a[j] < a[i]) c++; r = r * (n - i) + c; } return r; }
+function unrank(r, n) {
+  var code = [], i, av = [], a = [];
+  for (i = n - 1; i >= 0; i--) { code[i] = r % (n - i); r = (r / (n - i)) | 0; }
+  for (i = 0; i < n; i++) av.push(i);
+  for (i = 0; i < n; i++) a.push(av.splice(code[i], 1)[0]);
+  return a;
+}
+function Cnk(n, k) { if (k > n) return 0; var r = 1; for (var i = 0; i < k; i++) r = r * (n - i) / (i + 1); return Math.round(r); }
+function getTwist(c) { var t = 0; for (var i = 0; i < 7; i++) t = t * 3 + c.co[i]; return t; }
+function setTwist(c, t) { var s = 0; for (var i = 6; i >= 0; i--) { c.co[i] = t % 3; s += c.co[i]; t = (t / 3) | 0; } c.co[7] = (3 - s % 3) % 3; }
+function getFlip(c) { var t = 0; for (var i = 0; i < 11; i++) t = t * 2 + c.eo[i]; return t; }
+function setFlip(c, t) { var s = 0; for (var i = 10; i >= 0; i--) { c.eo[i] = t % 2; s += c.eo[i]; t = (t / 2) | 0; } c.eo[11] = s % 2; }
+function getSlice(ep) { var a = 0, x = 0; for (var j = 11; j >= 0; j--) if (ep[j] >= 8) { a += Cnk(11 - j, x + 1); x++; } return a; }
+
+var T = null; // テーブル
+var P2M = [0, 1, 2, 9, 10, 11, 4, 7, 13, 16];
+function isP2(m) { var f = (m / 3) | 0; return f === 0 || f === 3 || m % 3 === 1; }
+
+function init() {
+  if (T) return T;
+  var m, i, c, ep;
+  var twistMove = new Uint16Array(2187 * 18), flipMove = new Uint16Array(2048 * 18), sliceMove = new Uint16Array(495 * 18);
+  var cpMove = new Uint16Array(40320 * 18), udMove = new Uint16Array(40320 * 18), spMove = new Uint8Array(24 * 18);
+  for (i = 0; i < 2187; i++) { c = idCube(); setTwist(c, i); for (m = 0; m < 18; m++) twistMove[i * 18 + m] = getTwist(mul(c, MOVES[m])); }
+  for (i = 0; i < 2048; i++) { c = idCube(); setFlip(c, i); for (m = 0; m < 18; m++) flipMove[i * 18 + m] = getFlip(mul(c, MOVES[m])); }
+  var combos = [];
+  for (var a = 0; a < 12; a++) for (var b = a + 1; b < 12; b++) for (var d = b + 1; d < 12; d++) for (var e = d + 1; e < 12; e++) {
+    ep = [0,0,0,0,0,0,0,0,0,0,0,0]; ep[a] = ep[b] = ep[d] = ep[e] = 8; combos[getSlice(ep)] = ep; }
+  for (i = 0; i < 495; i++) { c = idCube(); c.ep = combos[i]; for (m = 0; m < 18; m++) sliceMove[i * 18 + m] = getSlice(mul(c, MOVES[m]).ep); }
+  for (i = 0; i < 40320; i++) {
+    c = idCube(); c.cp = unrank(i, 8);
+    for (m = 0; m < 18; m++) cpMove[i * 18 + m] = rank(mul(c, MOVES[m]).cp);
+    c = idCube(); c.ep = unrank(i, 8).concat([8, 9, 10, 11]);
+    for (var k = 0; k < 10; k++) { m = P2M[k]; udMove[i * 18 + m] = rank(mul(c, MOVES[m]).ep.slice(0, 8)); }
+  }
+  for (i = 0; i < 24; i++) {
+    c = idCube(); c.ep = [0,1,2,3,4,5,6,7].concat(unrank(i, 4).map(function (x) { return x + 8; }));
+    for (k = 0; k < 10; k++) { m = P2M[k]; spMove[i * 18 + m] = rank(mul(c, MOVES[m]).ep.slice(8).map(function (x) { return x - 8; })); }
+  }
+  var ALL = []; for (m = 0; m < 18; m++) ALL.push(m);
+  T = {
+    twistMove: twistMove, flipMove: flipMove, sliceMove: sliceMove, cpMove: cpMove, udMove: udMove, spMove: spMove,
+    P1a: bfs(2187, 495, twistMove, sliceMove, ALL), P1b: bfs(2048, 495, flipMove, sliceMove, ALL),
+    P2a: bfs(40320, 24, cpMove, spMove, P2M), P2b: bfs(40320, 24, udMove, spMove, P2M)
+  };
+  return T;
+}
+function bfs(n1, n2, mv1, mv2, moves) {
+  var size = n1 * n2, t = new Int8Array(size).fill(-1), d = 0, grew = true;
+  t[0] = 0;
+  while (grew) {
+    grew = false;
+    for (var i = 0; i < size; i++) if (t[i] === d) {
+      var a = (i / n2) | 0, b = i - a * n2;
+      for (var k = 0; k < moves.length; k++) { var m = moves[k], j = mv1[a * 18 + m] * n2 + mv2[b * 18 + m];
+        if (t[j] < 0) { t[j] = d + 1; grew = true; } }
+    }
+    d++;
+  }
+  return t;
+}
+
+// Kociemba二段階法。opt.time(ms)まで短い解を探し続ける
+function solve(f, opt) {
+  opt = opt || {};
+  var v = validate(f); if (!v.ok) return { error: v.msg };
+  var t = init(), c0 = v.cube;
+  var maxTotal = 30, best = null, path = [], t0 = Date.now(), soft = opt.time || 1500, hard = 20000, nodes = 0, abort = false;
+  function tick() { if ((++nodes & 2047) === 0) { var el = Date.now() - t0; if ((best && el > soft) || el > hard) abort = true; } return abort; }
+  function p2(cp, ud, sp, depth, lastF, sol) {
+    if (tick()) return false;
+    var h = Math.max(t.P2a[cp * 24 + sp], t.P2b[ud * 24 + sp]);
+    if (h > depth) return false;
+    if (depth === 0) return true;
+    for (var k = 0; k < 10; k++) { var m = P2M[k], fc = (m / 3) | 0;
+      if (fc === lastF || fc === lastF - 3) continue;
+      sol.push(m);
+      if (p2(t.cpMove[cp * 18 + m], t.udMove[ud * 18 + m], t.spMove[sp * 18 + m], depth - 1, fc, sol)) return true;
+      sol.pop(); if (abort) return false; }
+    return false;
+  }
+  function startP2() {
+    var c = c0; for (var i = 0; i < path.length; i++) c = mul(c, MOVES[path[i]]);
+    var cp = rank(c.cp), ud = rank(c.ep.slice(0, 8)), sp = rank(c.ep.slice(8).map(function (x) { return x - 8; }));
+    var lastF = path.length ? (path[path.length - 1] / 3) | 0 : -1, lim = Math.min(maxTotal - path.length, 18);
+    for (var d = 0; d <= lim; d++) { var sol = [];
+      if (p2(cp, ud, sp, d, lastF, sol)) { best = path.concat(sol); maxTotal = best.length - 1; return; }
+      if (abort) return; }
+  }
+  function p1(tw, fl, sl, depth, lastF) {
+    if (tick()) return;
+    var h = Math.max(t.P1a[tw * 495 + sl], t.P1b[fl * 495 + sl]);
+    if (h > depth) return;
+    if (depth === 0) { if (!path.length || !isP2(path[path.length - 1])) startP2(); return; }
+    for (var fc = 0; fc < 6; fc++) {
+      if (fc === lastF || fc === lastF - 3) continue;
+      for (var p = 0; p < 3; p++) { var m = fc * 3 + p;
+        path.push(m);
+        p1(t.twistMove[tw * 18 + m], t.flipMove[fl * 18 + m], t.sliceMove[sl * 18 + m], depth - 1, fc);
+        path.pop(); if (abort) return; }
+    }
+  }
+  var tw = getTwist(c0), fl = getFlip(c0), sl = getSlice(c0.ep);
+  for (var d1 = 0; d1 <= 12 && d1 <= maxTotal && !abort; d1++) p1(tw, fl, sl, d1, -1);
+  return best ? { moves: best } : { error: "時間内に解が見つかりませんでした。もう一度お試しください。" };
+}
+if (typeof module !== "undefined") module.exports = { solve: solve, init: init, applyF: applyF, solvedState: solvedState, isSolved: isSolved, parseMoves: parseMoves, moveName: moveName, validate: validate, MOVES: MOVES, mul: mul, idCube: idCube, CF: CF, EF: EF, CC: CC, EC: EC };
+</script>
+
+<!-- ===== UI ===== -->
+<script>
+"use strict";
+var $ = function (id) { return document.getElementById(id); };
+var FACE_JA = ["上面", "右面", "手前の面", "下面", "左面", "奥の面"];
+var COLORS = [0, 1, 2, 3, 4, 5].map(function (i) { return "var(--c" + i + ")"; });
+var state, startState = null, sol = [], pos = 0, busy = false, playing = false, paint = 0, ready = false;
+var reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---- Worker(ソルバー) ----
+var worker = new Worker(URL.createObjectURL(new Blob([$("core").textContent +
+  "\nonmessage=function(e){if(e.data.type==='init'){init();postMessage({type:'ready'});}else{var r=solve(e.data.f,{time:1500});r.type='result';postMessage(r);}};"],
+  { type: "text/javascript" })));
+worker.onmessage = function (e) {
+  if (e.data.type === "ready") { ready = true; $("btnSolve").disabled = false; $("btnSolve").textContent = "解く"; return; }
+  $("btnSolve").disabled = false; $("btnSolve").textContent = "解く";
+  if (e.data.error) { setMsg(e.data.error, true); return; }
+  startState = state.slice(); sol = e.data.moves; pos = 0;
+  setMsg(sol.length ? sol.length + "手で揃います。「次へ」で1手ずつ進めてください。" : "すでに揃っています。");
+  renderSol();
+};
+worker.postMessage({ type: "init" });
+
+function setMsg(t, ng) { $("msg").textContent = t; $("msg").className = "msg" + (ng ? " ng" : ""); }
+
+// ---- 3Dキューブ ----
+var S = 60, view = { x: -28, y: -38 }, cubies = [], stEls = [];
+var FACE_TF = ["rotateX(90deg)", "rotateY(90deg)", "", "rotateX(-90deg)", "rotateY(-90deg)", "rotateY(180deg)"];
+var CSS_ANG = [-90, 90, 90, 90, -90, -90], CSS_FN = ["rotateX", "rotateY", "rotateZ"];
+function buildCube() {
+  var cube = $("cube");
+  for (var x = -1; x <= 1; x++) for (var y = -1; y <= 1; y++) for (var z = -1; z <= 1; z++) {
+    var el = document.createElement("div"); el.className = "cubie";
+    var cb = { p: [x, y, z], el: el, faces: [] };
+    for (var f = 0; f < 6; f++) {
+      var n = NORMALS[f], fc = document.createElement("div"); fc.className = "fc";
+      if (x * n[0] + y * n[1] + z * n[2] === 1) {
+        var idx = fIdx([x, y, z], n), st = document.createElement("i");
+        st.dataset.idx = idx; fc.appendChild(st); stEls[idx] = st;
+      }
+      el.appendChild(fc); cb.faces.push(fc);
+    }
+    cube.appendChild(el); cubies.push(cb);
+  }
+  layout();
+}
+function tr(c) { return "translate3d(" + c.p[0] * S + "px," + (-c.p[1] * S) + "px," + c.p[2] * S + "px)"; }
+function layout() {
+  var w = $("stage").clientWidth; S = Math.max(34, Math.min(66, w / 5.2));
+  $("stage").style.height = Math.round(S * 5.6) + "px";
+  cubies.forEach(function (c) {
+    c.el.style.transform = tr(c);
+    c.faces.forEach(function (fc, f) {
+      fc.style.width = fc.style.height = S + "px"; fc.style.left = fc.style.top = (-S / 2) + "px";
+      fc.style.transform = FACE_TF[f] + " translateZ(" + (S / 2) + "px)";
+    });
+  });
+  setView();
+}
+function setView() { $("cube").style.transform = "rotateX(" + view.x + "deg) rotateY(" + view.y + "deg)"; }
+
+function render() {
+  for (var i = 0; i < 54; i++) { stEls[i].style.background = COLORS[state[i]]; netEls[i].style.background = COLORS[state[i]]; }
+  var chip = $("chip"), v = validate(state);
+  if (isSolved(state)) { chip.textContent = "揃っています"; chip.className = "chip ok"; }
+  else if (v.ok) { chip.textContent = "未完成"; chip.className = "chip"; }
+  else { chip.textContent = "入力エラー"; chip.className = "chip ng"; }
+  try { localStorage.setItem("rubik-state", JSON.stringify(state)); } catch (e) {}
+}
+
+function animate(m, ms) {
+  return new Promise(function (res) {
+    if (reduceMotion || !ms) { state = applyF(state, m); render(); return res(); }
+    var f = (m / 3) | 0, p = m % 3, ax = AX[f][0], sg = AX[f][1];
+    var ang = CSS_ANG[f] * (p === 0 ? 1 : p === 1 ? 2 : -1), fn = CSS_FN[ax];
+    var list = cubies.filter(function (c) { return c.p[ax] === sg; });
+    list.forEach(function (c) { c.el.style.transition = "none"; c.el.style.transform = fn + "(0deg) " + tr(c); });
+    void $("cube").offsetWidth;
+    var dur = p === 1 ? ms * 1.4 : ms;
+    list.forEach(function (c) { c.el.style.transition = "transform " + dur + "ms cubic-bezier(.4,.1,.3,1)"; c.el.style.transform = fn + "(" + ang + "deg) " + tr(c); });
+    setTimeout(function () {
+      list.forEach(function (c) { c.el.style.transition = "none"; c.el.style.transform = tr(c); });
+      state = applyF(state, m); render(); res();
+    }, dur + 30);
+  });
+}
+function inv(m) { return m - (m % 3) + [2, 1, 0][m % 3]; }
+function speed() { return +$("speed").value; }
+
+// ---- 解法プレイヤー ----
+function clearSol() { sol = []; pos = 0; startState = null; playing = false; renderSol(); }
+function renderSol() {
+  var box = $("moves"); box.innerHTML = "";
+  sol.forEach(function (m, i) {
+    var b = document.createElement("button"); b.className = "mv" + (i < pos ? " done" : "") + (i === pos ? " cur" : "");
+    b.textContent = moveName(m); b.title = (i + 1) + "手目"; b.onclick = function () { jump(i); };
+    box.appendChild(b);
+  });
+  $("count").textContent = pos + " / " + sol.length;
+  if (pos < sol.length) {
+    var m = sol[pos], f = (m / 3) | 0, p = m % 3;
+    $("nowMove").textContent = moveName(m).replace("'", "′");
+    $("nowText").textContent = FACE_JA[f] + "を" + (p === 1 ? "180°回す" : p === 0 ? "時計回りに90°回す" : "反時計回りに90°回す") + "(その面を正面から見た向き)";
+  } else if (sol.length) { $("nowMove").textContent = "✓"; $("nowText").textContent = "完成です。"; }
+  else { $("nowMove").textContent = "–"; $("nowText").textContent = "「解く」を押すと、ここに次の1手の説明が出ます。"; }
+  var has = sol.length > 0;
+  $("btnFirst").disabled = $("btnPrev").disabled = !has || pos === 0 || busy && !playing;
+  $("btnNext").disabled = $("btnLast").disabled = !has || pos >= sol.length;
+  $("btnPlay").disabled = !has || pos >= sol.length && !playing;
+  $("btnPlay").textContent = playing ? "一時停止" : "自動再生";
+}
+async function step(dir) {
+  if (busy) return; busy = true;
+  if (dir > 0 && pos < sol.length) { await animate(sol[pos], speed()); pos++; }
+  else if (dir < 0 && pos > 0) { pos--; await animate(inv(sol[pos]), speed()); }
+  busy = false; renderSol();
+}
+function jump(i) {
+  if (busy || !startState) return; playing = false;
+  state = startState.slice(); for (var k = 0; k < i; k++) state = applyF(state, sol[k]);
+  pos = i; render(); renderSol();
+}
+async function play() {
+  if (playing) { playing = false; renderSol(); return; }
+  playing = true; renderSol();
+  while (playing && pos < sol.length) { await step(1); await new Promise(function (r) { setTimeout(r, speed() * 0.35); }); }
+  playing = false; renderSol();
+}
+
+// ---- 展開図エディタ ----
+var netEls = [];
+var NET_POS = [[0, 3], [3, 6], [3, 3], [6, 3], [3, 0], [3, 9]]; // 面ごとの [行, 列]
+function buildNet() {
+  var net = $("net"), cells = [];
+  for (var f = 0; f < 6; f++) for (var k = 0; k < 9; k++) {
+    var idx = f * 9 + k, b = document.createElement("button");
+    b.className = "st" + (k === 4 ? " center" : "");
+    b.style.gridRow = NET_POS[f][0] + ((k / 3) | 0) + 1; b.style.gridColumn = NET_POS[f][1] + (k % 3) + 1;
+    b.setAttribute("aria-label", FACES[f] + (k + 1));
+    if (k === 4) { b.dataset.l = FACES[f]; b.tabIndex = -1; }
+    b.dataset.idx = idx; netEls[idx] = b; cells.push(b);
+  }
+  cells.forEach(function (b) { net.appendChild(b); });
+  net.addEventListener("click", function (e) { var t = e.target.closest(".st"); if (t) paintAt(+t.dataset.idx); });
+  var pal = $("palette");
+  COLORS.forEach(function (c, i) {
+    var b = document.createElement("button"); b.className = "pal"; b.style.background = c;
+    b.setAttribute("aria-label", COLOR_JA[i]); b.setAttribute("aria-pressed", i === paint ? "true" : "false");
+    b.onclick = function () { paint = i; [].forEach.call(pal.children, function (x, j) { x.setAttribute("aria-pressed", j === i ? "true" : "false"); }); };
+    pal.appendChild(b);
+  });
+}
+function paintAt(idx) {
+  if (busy || idx % 9 === 4) return;
+  state[idx] = paint; clearSol(); render();
+  var v = validate(state); setMsg(v.ok ? "" : v.msg, !v.ok && !state.some(function (x) { return x < 0; }) ? true : false);
+}
+
+// ---- 写真で読み取る ----
+// 各面の中心ステッカーを同じ照明下の基準色とし、Lab色空間で最も近い色に割り当てる(各色9枚の制約つき)
+var CAM_ORDER = [2, 1, 5, 4, 0, 3];
+var CAM_NAME = ["白(上)", "赤(右)", "緑(前)", "黄(下)", "オレンジ(左)", "青(奥)"];
+var CAM_UP = ["青", "白", "白", "緑", "白", "白"];
+var cam = { face: 2, off: null, px: null, cx: 0.5, cy: 0.5, size: 0.7, data: {} };
+function buildCam() {
+  var box = $("camFaces");
+  CAM_ORDER.forEach(function (f) {
+    var b = document.createElement("button"); b.className = "camf"; b.dataset.f = f;
+    var mini = '<span class="mini">' + new Array(10).join("<span></span>") + "</span>";
+    b.innerHTML = mini + "<span>" + CAM_NAME[f].replace(/\(.*/, "") + "</span>";
+    b.onclick = function () { cam.face = f; camUI(); };
+    box.appendChild(b);
+  });
+  $("camPick").onclick = function () { $("camFile").click(); };
+  $("camFile").onchange = function (e) { var file = e.target.files[0]; if (file) loadPhoto(file); e.target.value = ""; };
+  $("camSize").oninput = function () { cam.size = this.value / 100; drawCam(); };
+  $("camTake").onclick = takeFace;
+  $("camApply").onclick = applyCam;
+  $("camLive").onclick = startLive;
+  $("liveStop").onclick = stopLive;
+  $("liveTake").onclick = takeLive;
+  var cv = $("camCanvas"), drag = null;
+  cv.addEventListener("pointerdown", function (e) { drag = { x: e.clientX, y: e.clientY, cx: cam.cx, cy: cam.cy }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", function (e) {
+    if (!drag) return; var r = cv.getBoundingClientRect();
+    cam.cx = Math.max(0, Math.min(1, drag.cx + (e.clientX - drag.x) / r.width));
+    cam.cy = Math.max(0, Math.min(1, drag.cy + (e.clientY - drag.y) / r.height)); drawCam();
+  });
+  cv.addEventListener("pointerup", function () { drag = null; });
+  camUI();
+}
+function camUI() {
+  [].forEach.call($("camFaces").children, function (b) {
+    var f = +b.dataset.f, d = cam.data[f];
+    b.setAttribute("aria-pressed", f === cam.face ? "true" : "false");
+    [].forEach.call(b.firstChild.children, function (s, k) { s.style.background = d ? "rgb(" + d[k].join(",") + ")" : ""; });
+  });
+  $("camGuide").textContent = CAM_NAME[cam.face].replace(/\(.*/, "") + "の面を正面に向け、" + CAM_UP[cam.face] + "の面が上になるように持って撮影";
+  var n = 6 - Object.keys(cam.data).length;
+  $("camApply").disabled = n > 0;
+  $("camApply").textContent = n > 0 ? "読み取った色をキューブに反映(あと" + n + "面)" : "読み取った色をキューブに反映";
+}
+function loadPhoto(file) {
+  var img = new Image(), url = URL.createObjectURL(file);
+  img.onload = function () {
+    var k = Math.min(1, 900 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    var x = c.getContext("2d"); x.drawImage(img, 0, 0, c.width, c.height);
+    cam.off = c; cam.px = x.getImageData(0, 0, c.width, c.height); cam.cx = cam.cy = 0.5;
+    URL.revokeObjectURL(url);
+    $("camCanvas").hidden = false; $("camCtrl").hidden = false; drawCam();
+  };
+  img.onerror = function () { setMsg("画像を読み込めませんでした。別の写真を選んでください。", true); };
+  img.src = url;
+}
+// ライブカメラ(通常のWebサイトとして開いたときに使える)
+var LIVE_FR = 0.6, liveStream = null;
+async function startLive() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setMsg("この画面ではカメラを使えません。「写真を選ぶ」を使ってください。", true); return; }
+  try {
+    liveStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 } }, audio: false });
+  } catch (e) { setMsg("カメラを起動できませんでした(許可されていないか、この画面では使えません)。「写真を選ぶ」を使ってください。", true); return; }
+  var v = $("camVideo"); v.srcObject = liveStream; await v.play().catch(function () {});
+  $("liveBox").hidden = false; $("liveCtrl").hidden = false; $("camCanvas").hidden = true; $("camCtrl").hidden = true;
+  v.onloadedmetadata = sizeLiveGrid; sizeLiveGrid();
+  setMsg("");
+}
+function sizeLiveGrid() {
+  var r = $("camVideo").getBoundingClientRect(), s = LIVE_FR * Math.min(r.width, r.height);
+  $("liveGrid").style.width = $("liveGrid").style.height = s + "px";
+}
+function stopLive() {
+  if (liveStream) liveStream.getTracks().forEach(function (t) { t.stop(); });
+  liveStream = null; $("liveBox").hidden = true; $("liveCtrl").hidden = true;
+}
+function takeLive() {
+  var v = $("camVideo"); if (!v.videoWidth) return;
+  var c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+  var x = c.getContext("2d"); x.drawImage(v, 0, 0);
+  cam.off = c; cam.px = x.getImageData(0, 0, c.width, c.height); cam.cx = cam.cy = 0.5; cam.size = LIVE_FR;
+  takeFace();
+  cam.size = $("camSize").value / 100;
+  if (Object.keys(cam.data).length === 6) stopLive();
+}
+window.addEventListener("resize", function () { if (liveStream) sizeLiveGrid(); });
+function camBox() { var w = cam.off.width, h = cam.off.height, s = cam.size * Math.min(w, h); return { x: cam.cx * w - s / 2, y: cam.cy * h - s / 2, s: s }; }
+function drawCam() {
+  if (!cam.off) return;
+  var cv = $("camCanvas"), b = camBox();
+  cv.width = cam.off.width; cv.height = cam.off.height;
+  var x = cv.getContext("2d"), lw = Math.max(2, cv.width / 250); x.drawImage(cam.off, 0, 0);
+  [["rgba(0,0,0,.6)", lw * 2.5], ["#fff", lw]].forEach(function (st) {
+    x.strokeStyle = st[0]; x.lineWidth = st[1]; x.beginPath();
+    for (var i = 0; i <= 3; i++) { var o = b.s * i / 3;
+      x.moveTo(b.x + o, b.y); x.lineTo(b.x + o, b.y + b.s); x.moveTo(b.x, b.y + o); x.lineTo(b.x + b.s, b.y + o); }
+    x.stroke();
+  });
+}
+function takeFace() {
+  if (!cam.px) return;
+  var b = camBox(), P = cam.px, cell = b.s / 3, half = Math.max(1, cell * 0.22), out = [];
+  for (var k = 0; k < 9; k++) {
+    var mx = b.x + (k % 3 + 0.5) * cell, my = b.y + (((k / 3) | 0) + 0.5) * cell, s = [0, 0, 0], n = 0;
+    for (var y = Math.round(my - half); y <= my + half; y++) for (var xx = Math.round(mx - half); xx <= mx + half; xx++) {
+      if (xx < 0 || y < 0 || xx >= P.width || y >= P.height) continue;
+      var i = (y * P.width + xx) * 4; s[0] += P.data[i]; s[1] += P.data[i + 1]; s[2] += P.data[i + 2]; n++;
+    }
+    out.push(n ? s.map(function (v) { return Math.round(v / n); }) : [128, 128, 128]);
+  }
+  cam.data[cam.face] = out;
+  var next = CAM_ORDER.filter(function (f) { return !cam.data[f]; })[0];
+  if (next !== undefined) { cam.face = next; setMsg("読み取りました。次は" + CAM_NAME[next] + "の面を撮影してください。"); }
+  else setMsg("6面すべて読み取りました。「キューブに反映」を押してください。");
+  $("camCanvas").hidden = true; $("camCtrl").hidden = true; cam.off = cam.px = null;
+  camUI();
+}
+function toLab(rgb) {
+  var c = rgb.map(function (v) { v /= 255; return v > 0.04045 ? Math.pow((v + 0.055) / 1.055, 2.4) : v / 12.92; });
+  var X = (c[0] * 0.4124 + c[1] * 0.3576 + c[2] * 0.1805) / 0.95047, Y = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722,
+      Zz = (c[0] * 0.0193 + c[1] * 0.1192 + c[2] * 0.9505) / 1.08883;
+  var f = function (t) { return t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; };
+  return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Zz))];
+}
+function applyCam() {
+  if (busy) return;
+  var ref = [0, 1, 2, 3, 4, 5].map(function (f) { return toLab(cam.data[f][4]); }), pairs = [], next = new Array(54), cnt = [1, 1, 1, 1, 1, 1];
+  for (var f = 0; f < 6; f++) for (var k = 0; k < 9; k++) {
+    if (k === 4) { next[f * 9 + 4] = f; continue; }
+    var L = toLab(cam.data[f][k]);
+    for (var c = 0; c < 6; c++) { var d0 = L[0] - ref[c][0], d1 = L[1] - ref[c][1], d2 = L[2] - ref[c][2];
+      pairs.push([0.4 * d0 * d0 + d1 * d1 + d2 * d2, f * 9 + k, c]); }
+  }
+  pairs.sort(function (a, b) { return a[0] - b[0]; });
+  pairs.forEach(function (p) { if (next[p[1]] === undefined && cnt[p[2]] < 9) { next[p[1]] = p[2]; cnt[p[2]]++; } });
+  state = next; clearSol(); render();
+  cam.data = {}; cam.face = CAM_ORDER[0]; camUI();
+  var v = validate(state);
+  setMsg(v.ok ? "写真から色を反映しました。実物と見比べて、違うマスがあれば展開図で直してから「解く」を押してください。"
+              : "写真から色を反映しましたが、" + v.msg + " 実物と見比べて違うマスを直してください。", !v.ok);
+}
+
+// ---- 手動回転 ----
+function buildTurns() {
+  var box = $("turns");
+  [0, 2].forEach(function (p) { for (let f = 0; f < 6; f++) {
+    let m = f * 3 + p, b = document.createElement("button"); b.textContent = moveName(m).replace("'", "′");
+    b.onclick = function () { manual([m]); }; box.appendChild(b); } });
+}
+async function manual(list) {
+  if (busy) return;
+  if (!validate(state).ok) { setMsg("入力エラーを直してから回してください。", true); return; }
+  busy = true; clearSol();
+  for (var i = 0; i < list.length; i++) await animate(list[i], list.length > 6 ? 0 : 220);
+  busy = false; renderSol(); setMsg("");
+}
+
+// ---- 操作 ----
+function scramble() {
+  var list = [], last = -1;
+  while (list.length < 22) { var f = (Math.random() * 6) | 0; if (f === last || f === last - 3) continue; list.push(f * 3 + ((Math.random() * 3) | 0)); last = f; }
+  state = solvedState(); list.forEach(function (m) { state = applyF(state, m); });
+  clearSol(); render(); setMsg("スクランブル: " + list.map(moveName).join(" "));
+}
+$("btnScramble").onclick = function () { if (!busy) scramble(); };
+$("btnReset").onclick = function () { if (busy) return; state = solvedState(); clearSol(); render(); setMsg(""); };
+$("btnClear").onclick = function () { if (busy) return; state = state.map(function (c, i) { return i % 9 === 4 ? c : -1; }); clearSol(); render(); setMsg("マスを塗って色を入力してください。"); };
+$("btnSolve").onclick = function () {
+  if (!ready || busy) return;
+  var v = validate(state); if (!v.ok) { setMsg(v.msg, true); return; }
+  $("btnSolve").disabled = true; $("btnSolve").textContent = "計算中…"; setMsg("");
+  worker.postMessage({ type: "solve", f: state });
+};
+$("btnNext").onclick = function () { step(1); };
+$("btnPrev").onclick = function () { step(-1); };
+$("btnFirst").onclick = function () { jump(0); };
+$("btnLast").onclick = function () { jump(sol.length); };
+$("btnPlay").onclick = play;
+$("btnAlgo").onclick = function () {
+  var l = parseMoves($("algo").value);
+  if (!l) { setMsg("手順の書き方が正しくありません。例: R U R' U2", true); return; }
+  manual(l);
+};
+
+// 視点ドラッグ+3Dのマスをタップで塗る
+(function () {
+  var st = $("stage"), sx, sy, vx, vy, moved = false, down = false;
+  st.addEventListener("pointerdown", function (e) { down = true; moved = false; sx = e.clientX; sy = e.clientY; vx = view.x; vy = view.y; });
+  st.addEventListener("pointermove", function (e) {
+    if (!down) return; var dx = e.clientX - sx, dy = e.clientY - sy;
+    if (!moved && Math.abs(dx) + Math.abs(dy) > 5) { moved = true; st.setPointerCapture(e.pointerId); }
+    if (moved) { view.y = vy + dx * 0.5; view.x = Math.max(-89, Math.min(89, vx - dy * 0.5)); setView(); }
+  });
+  st.addEventListener("pointerup", function (e) {
+    if (down && !moved) { var t = document.elementFromPoint(e.clientX, e.clientY); if (t && t.dataset && t.dataset.idx) paintAt(+t.dataset.idx); }
+    down = false;
+  });
+  st.addEventListener("pointercancel", function () { down = false; });
+})();
+
+window.addEventListener("resize", layout);
+buildCube(); buildNet(); buildTurns(); buildCam();
+try { var saved = JSON.parse(localStorage.getItem("rubik-state")); if (Array.isArray(saved) && saved.length === 54) state = saved; } catch (e) {}
+if (!state) scramble(); else { render(); renderSol(); }
+render(); renderSol();
+</script>
+</body>
+</html>
